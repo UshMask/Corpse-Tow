@@ -1,0 +1,139 @@
+VERSION = 1,
+option CorpseProxyLab.Enabled
+{
+ type = boolean,
+ default = true,
+ page = CorpseProxyLab,
+ translation = CorpseProxyLab_Enabled,
+}
+option CorpseProxyLab.VehicleDrag
+{
+ type = boolean,
+ default = true,
+ page = CorpseProxyLab,
+ translation = CorpseProxyLab_VehicleDrag,
+}
+option CorpseProxyLab.HorseTowing
+{
+ type = boolean,
+ default = true,
+ page = CorpseProxyLab,
+ translation = CorpseProxyLab_HorseTowing,
+}
+option CorpseProxyLab.AllowPlayerCorpses
+{
+ type = boolean,
+ default = true,
+ page = CorpseProxyLab,
+ translation = CorpseProxyLab_AllowPlayerCorpses,
+}
+option CorpseProxyLab.AllowDetachOthers
+{
+ type = boolean,
+ default = true,
+ page = CorpseProxyLab,
+ translation = CorpseProxyLab_AllowDetachOthers,
+}
+option CorpseProxyLab.MaxBodiesPerChain
+{
+ type = integer,
+ default = 32,
+ min = 0,
+ max = 100000,
+ page = CorpseProxyLab,
+ translation = CorpseProxyLab_MaxBodiesPerChain,
+}
+option CorpseProxyLab.BloodTrails
+{
+ type = boolean,
+ default = true,
+ page = CorpseProxyLab,
+ translation = CorpseProxyLab_BloodTrails,
+}
+option CorpseProxyLab.BloodTrailDensity
+{
+ type = enum,
+ numValues = 3,
+ default = 2,
+ page = CorpseProxyLab,
+ translation = CorpseProxyLab_BloodTrailDensity,
+}
+option CorpseProxyLab.CosmeticWear
+{
+ type = boolean,
+ default = true,
+ page = CorpseProxyLab,
+ translation = CorpseProxyLab_CosmeticWear,
+}
+option CorpseProxyLab.ClothingWear
+{
+ type = boolean,
+ default = true,
+ page = CorpseProxyLab,
+ translation = CorpseProxyLab_ClothingWear,
+}
+option CorpseProxyLab.ClothingWearRate
+{
+ type = enum,
+ numValues = 3,
+ default = 2,
+ page = CorpseProxyLab,
+ translation = CorpseProxyLab_ClothingWearRate,
+}
+option CorpseProxyLab.BodyWear
+{
+ type = boolean,
+ default = false,
+ page = CorpseProxyLab,
+ translation = CorpseProxyLab_BodyWear,
+}
+option CorpseProxyLab.BodyWearRate
+{
+ type = enum,
+ numValues = 3,
+ default = 2,
+ page = CorpseProxyLab,
+ translation = CorpseProxyLab_BodyWearRate,
+}
+
+option CorpseProxyLab.BodySpread
+{
+ type = boolean,
+ default = true,
+ page = CorpseProxyLab,
+ translation = CorpseProxyLab_BodySpread,
+}
+
+option CorpseProxyLab.BodySpreadWidth
+{
+ type = enum,
+ default = 2,
+ numValues = 3,
+ page = CorpseProxyLab,
+ translation = CorpseProxyLab_BodySpreadWidth,
+}
+
+option CorpseProxyLab.BodySpreadStrength
+{
+ type = enum,
+ default = 2,
+ numValues = 3,
+ page = CorpseProxyLab,
+ translation = CorpseProxyLab_BodySpreadStrength,
+}
+
+option CorpseProxyLab.CarcassWear
+{
+ type = boolean,
+ default = true,
+ page = CorpseProxyLab,
+ translation = CorpseProxyLab_CarcassWear,
+}
+option CorpseProxyLab.CarcassWearRate
+{
+ type = enum,
+ default = 2,
+ numValues = 3,
+ page = CorpseProxyLab,
+ translation = CorpseProxyLab_CarcassWearRate,
+}

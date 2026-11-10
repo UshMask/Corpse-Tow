@@ -1,0 +1,9 @@
+name=Corpse Tow [B42]
+id=CorpseProxyLab
+modversion=0.8.1
+versionMin=42.21
+require=\ZombieBuddy
+javaJarFile=media/java/CorpseProxyWorld.jar
+javaPkgName=cvpworld
+ZBVersionMin=2.0.0
+description=Corpse towing with native scene ropes. Single-player and experimental server-authoritative multiplayer for B42.21. Requires the ZombieBuddy Java agent on server and clients.

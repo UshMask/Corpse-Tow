@@ -1,0 +1,6 @@
+name=Corpse Tow - Viewpoint support (built in)
+id=CorpseProxyViewpoint
+modversion=0.7.3
+versionMin=42.21
+require=\CorpseProxyLab,\ZombieBuddy
+description=Compatibility entry for old mod lists. Viewpoint support is now built into Corpse Tow; this entry can be disabled.
