@@ -1,0 +1,1 @@
+PASS ValidateEquipmentBridge groups={bridge=true, ledger=true, playerCheckpointMp=true, playerCheckpointSp=true, squareCheckpointMp=true, squareCheckpointSp=true, skeletonLifetime=true, worldVersion=true}

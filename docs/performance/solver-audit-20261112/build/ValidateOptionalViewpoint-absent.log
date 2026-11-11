@@ -1,0 +1,15 @@
+[ZB] Scanned 88 classes in package cvpworld
+[ZB] Found patch class: cvpworld.PatchBodyPresentation$Draw
+[ZB] Found patch class: cvpworld.PatchBodyPresentation$Mouse
+[ZB] Found patch class: cvpworld.PatchBodyPresentation$Shadow
+[ZB] Found patch class: cvpworld.PatchBodyPresentation$ShadowScope
+[ZB] Found patch class: cvpworld.PatchChunkSaveAck
+[ZB] Found patch class: cvpworld.PatchFreeRopeFog
+[ZB] Found patch class: cvpworld.PatchFreeRopeScene
+[ZB] Found patch class: cvpworld.PatchPlayerSaveAck
+[ZB] Found patch class: cvpworld.PatchRopeSnapshot
+[ZB] Found patch class: cvpworld.PatchSkeletonRotting
+[ZB] Found patch class: cvpworld.PatchSkeletonUpdate
+[ZB] Found patch class: cvpworld.PatchVehicleMotion
+[ZB] Found patch class: cvpworld.PatchVehicleRemoval
+PASS optional Viewpoint: absent

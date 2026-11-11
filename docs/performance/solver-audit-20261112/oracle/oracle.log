@@ -1,0 +1,273 @@
+STDOUT
+=== SOLVER EQUIVALENCE HEADER ===
+oracle=three-way (old-java vs new-java, old-lua vs new-lua, new-java vs new-lua)
+baselineJavaPath=<REPO>\tests\fixtures\solver_baseline\TowingSolver.java
+baselineHashNormalization=utf8-crlf-to-lf
+baselineJavaSha256=A957246BDB14361A878EA96E23AFCF2C45359A646E522700BF294571F006476F
+baselineJavaRawSha256=DC04B22E89B820BB18CBE0C261FF21CA4EEC1BA7E7A317616B7FB63F0D24EA87
+baselineLuaPath=<REPO>\tests\fixtures\solver_baseline\CVP_GroupConstraints.lua
+baselineLuaSha256=6A77D2484C93D003E09351B654955F8602EC7620B1E31B1484354AF87B0B348E
+baselineLuaRawSha256=7E3E20D9686912C4D5AF5781F3C31B7313FC60D17196DA4F51D1929BF68E571F
+currentJavaPath=<REPO>\CorpseProxyLab\source\cvpworld\TowingSolver.java
+currentJavaSha256=814E08438E71DE4760CD1B95E7F5BD277F63D070F4D44F2E6BAAE9B28660A0D3
+currentLuaPath=<REPO>\CorpseProxyLab\42\media\lua\shared\CVP_GroupConstraints.lua
+currentLuaSha256=1B2BE7BE9FB6565BF65905298C6D7EDFEAC2C3D7CC26363D646B890E4EA1FF11
+jarPath=<REPO>\CorpseProxyLab\42\media\java\CorpseProxyWorld.jar
+jarFileSha256=D18A09978B13EB9EB1724AEBDAC499CD517E5AAF528B1C5CC281E20A0DEDE18E
+jarTowingSolverClassSha256=4F68F1C7F54F0CF9D61835E49792DB70E31AA0F810E3B0680FB0B4EC8C4958E8
+compiledTowingSolverClassSha256=4F68F1C7F54F0CF9D61835E49792DB70E31AA0F810E3B0680FB0B4EC8C4958E8
+jarClassMatchesCompiled=true
+jarSolverClassCount=4
+jarSolverClasses=cvpworld/TowingSolver$Body.class,cvpworld/TowingSolver$Pose.class,cvpworld/TowingSolver$State.class,cvpworld/TowingSolver.class
+jarMismatchedSolverClasses=
+jarClassCheck=enforced
+nativeClass=cvpworld.TowingSolver
+nativeClassSource=file:/<REPO>/local/runs/solver-equivalence-20261112-020408/classes/
+baselineClass=cvpworld.TowingSolverBaseline
+baselineClassSource=file:/<REPO>/local/runs/solver-equivalence-20261112-020408/validators/
+nativeSolverVersion=1
+backend=in-process-java-native (+ kahlua Lua oracle in same JVM)
+luaVm=kahlua null
+=== END SOLVER EQUIVALENCE HEADER ===
+nativeSmoke=ok load=0.0 x=0.5827645536644792
+oracle1 scenario=rest-1 bodies=1 ticks=50
+oracle1 done mode=persistent scenario=rest-1 (0.028s)
+oracle1 scenario=straight-1 bodies=1 ticks=70
+oracle1 done mode=persistent scenario=straight-1 (0.012s)
+oracle1 scenario=turn-1 bodies=1 ticks=70
+oracle1 done mode=persistent scenario=turn-1 (0.008s)
+oracle1 scenario=rest-4 bodies=4 ticks=40
+oracle1 done mode=persistent scenario=rest-4 (0.011s)
+oracle1 scenario=straight-4 bodies=4 ticks=60
+oracle1 done mode=persistent scenario=straight-4 (0.010s)
+oracle1 scenario=turn-4 bodies=4 ticks=60
+oracle1 done mode=persistent scenario=turn-4 (0.013s)
+oracle1 scenario=brake-4 bodies=4 ticks=60
+oracle1 done mode=persistent scenario=brake-4 (0.006s)
+oracle1 scenario=reverse-4 bodies=4 ticks=60
+oracle1 done mode=persistent scenario=reverse-4 (0.005s)
+oracle1 scenario=slack-4 bodies=4 ticks=70
+oracle1 done mode=persistent scenario=slack-4 (0.009s)
+oracle1 scenario=mass-4 bodies=4 ticks=60
+oracle1 done mode=persistent scenario=mass-4 (0.006s)
+oracle1 scenario=reset-4 bodies=4 ticks=60
+oracle1 done mode=persistent scenario=reset-4 (0.006s)
+oracle1 scenario=straight-32 bodies=32 ticks=40
+oracle1 done mode=persistent scenario=straight-32 (0.012s)
+oracle1 scenario=turn-32 bodies=32 ticks=40
+oracle1 done mode=persistent scenario=turn-32 (0.020s)
+oracle1 scenario=brake-32 bodies=32 ticks=40
+oracle1 done mode=persistent scenario=brake-32 (0.012s)
+oracle1 scenario=reverse-32 bodies=32 ticks=40
+oracle1 done mode=persistent scenario=reverse-32 (0.012s)
+oracle1 scenario=slack-32 bodies=32 ticks=50
+oracle1 done mode=persistent scenario=slack-32 (0.019s)
+oracle1 scenario=mass-32 bodies=32 ticks=40
+oracle1 done mode=persistent scenario=mass-32 (0.011s)
+oracle1 scenario=obstacle-wall-32 bodies=32 ticks=40
+oracle1 done mode=persistent scenario=obstacle-wall-32 (0.031s)
+oracle1 scenario=obstacle-unloaded-32 bodies=32 ticks=40
+oracle1 done mode=persistent scenario=obstacle-unloaded-32 (0.026s)
+oracle1 scenario=obstacle-solid-32 bodies=32 ticks=40
+oracle1 done mode=persistent scenario=obstacle-solid-32 (0.024s)
+oracle1 scenario=obstacle-tree-32 bodies=32 ticks=40
+oracle1 done mode=persistent scenario=obstacle-tree-32 (0.025s)
+oracle1 scenario=chains-1x32 bodies=32 ticks=30
+oracle1 done mode=persistent scenario=chains-1x32 (0.007s)
+oracle1 scenario=chains-2x32 bodies=64 ticks=30
+oracle1 done mode=persistent scenario=chains-2x32 (0.021s)
+oracle1 scenario=chains-4x32 bodies=128 ticks=30
+oracle1 done mode=persistent scenario=chains-4x32 (0.036s)
+oracle1 scenario=unload-replacement-32 bodies=32 ticks=40
+oracle1 done mode=persistent scenario=unload-replacement-32 (0.010s)
+oracle1 scenario=topology-change-32 bodies=32 ticks=40
+oracle1 done mode=persistent scenario=topology-change-32 (0.049s)
+oracle1 scenario=backend-switch-32 bodies=32 ticks=40
+oracle1 done mode=persistent scenario=backend-switch-32 (0.013s)
+oracle1 scenario=rollback-32 bodies=32 ticks=40
+oracle1 done mode=persistent scenario=rollback-32 (0.016s)
+oracle1 scenario=geometry-4 bodies=4 ticks=60
+oracle1 done mode=persistent scenario=geometry-4 (0.008s)
+oracle1 scenario=inputs-4 bodies=4 ticks=60
+oracle1 done mode=persistent scenario=inputs-4 (0.027s)
+oracle1 scenario=rest-1 bodies=1 ticks=50
+oracle1 done mode=legacy scenario=rest-1 (0.002s)
+oracle1 scenario=straight-1 bodies=1 ticks=70
+oracle1 done mode=legacy scenario=straight-1 (0.003s)
+oracle1 scenario=turn-1 bodies=1 ticks=70
+oracle1 done mode=legacy scenario=turn-1 (0.003s)
+oracle1 scenario=rest-4 bodies=4 ticks=40
+oracle1 done mode=legacy scenario=rest-4 (0.002s)
+oracle1 scenario=straight-4 bodies=4 ticks=60
+oracle1 done mode=legacy scenario=straight-4 (0.005s)
+oracle1 scenario=turn-4 bodies=4 ticks=60
+oracle1 done mode=legacy scenario=turn-4 (0.010s)
+oracle1 scenario=brake-4 bodies=4 ticks=60
+oracle1 done mode=legacy scenario=brake-4 (0.005s)
+oracle1 scenario=reverse-4 bodies=4 ticks=60
+oracle1 done mode=legacy scenario=reverse-4 (0.003s)
+oracle1 scenario=slack-4 bodies=4 ticks=70
+oracle1 done mode=legacy scenario=slack-4 (0.007s)
+oracle1 scenario=mass-4 bodies=4 ticks=60
+oracle1 done mode=legacy scenario=mass-4 (0.004s)
+oracle1 scenario=reset-4 bodies=4 ticks=60
+oracle1 done mode=legacy scenario=reset-4 (0.006s)
+oracle1 scenario=straight-32 bodies=32 ticks=40
+oracle1 done mode=legacy scenario=straight-32 (0.011s)
+oracle1 scenario=turn-32 bodies=32 ticks=40
+oracle1 done mode=legacy scenario=turn-32 (0.022s)
+oracle1 scenario=brake-32 bodies=32 ticks=40
+oracle1 done mode=legacy scenario=brake-32 (0.011s)
+oracle1 scenario=reverse-32 bodies=32 ticks=40
+oracle1 done mode=legacy scenario=reverse-32 (0.008s)
+oracle1 scenario=slack-32 bodies=32 ticks=50
+oracle1 done mode=legacy scenario=slack-32 (0.016s)
+oracle1 scenario=mass-32 bodies=32 ticks=40
+oracle1 done mode=legacy scenario=mass-32 (0.010s)
+oracle1 scenario=obstacle-wall-32 bodies=32 ticks=40
+oracle1 done mode=legacy scenario=obstacle-wall-32 (0.022s)
+oracle1 scenario=obstacle-unloaded-32 bodies=32 ticks=40
+oracle1 done mode=legacy scenario=obstacle-unloaded-32 (0.018s)
+oracle1 scenario=obstacle-solid-32 bodies=32 ticks=40
+oracle1 done mode=legacy scenario=obstacle-solid-32 (0.021s)
+oracle1 scenario=obstacle-tree-32 bodies=32 ticks=40
+oracle1 done mode=legacy scenario=obstacle-tree-32 (0.025s)
+oracle1 scenario=chains-1x32 bodies=32 ticks=30
+oracle1 done mode=legacy scenario=chains-1x32 (0.005s)
+oracle1 scenario=chains-2x32 bodies=64 ticks=30
+oracle1 done mode=legacy scenario=chains-2x32 (0.009s)
+oracle1 scenario=chains-4x32 bodies=128 ticks=30
+oracle1 done mode=legacy scenario=chains-4x32 (0.023s)
+oracle1 scenario=unload-replacement-32 bodies=32 ticks=40
+oracle1 done mode=legacy scenario=unload-replacement-32 (0.007s)
+oracle1 scenario=topology-change-32 bodies=32 ticks=40
+oracle1 done mode=legacy scenario=topology-change-32 (0.027s)
+oracle1 scenario=backend-switch-32 bodies=32 ticks=40
+oracle1 done mode=legacy scenario=backend-switch-32 (0.007s)
+oracle1 scenario=geometry-4 bodies=4 ticks=60
+oracle1 done mode=legacy scenario=geometry-4 (0.004s)
+oracle1 scenario=inputs-4 bodies=4 ticks=60
+oracle1 done mode=legacy scenario=inputs-4 (0.013s)
+PASS delayed rollback backend=frozen-baseline-java firstSubstepWorldReads=49 failedWorldRead=50
+PASS delayed rollback backend=live-java firstSubstepWorldReads=49 failedWorldRead=50
+PASS oracle 1/3 java-vs-java: old frozen Java vs live Java (1.047s)
+oracle2 scenario=rest-1 bodies=1 ticks=50
+oracle2 done scenario=rest-1 (0.060s)
+oracle2 scenario=straight-1 bodies=1 ticks=70
+oracle2 done scenario=straight-1 (0.068s)
+oracle2 scenario=turn-1 bodies=1 ticks=70
+oracle2 done scenario=turn-1 (0.077s)
+oracle2 scenario=rest-4 bodies=4 ticks=40
+oracle2 done scenario=rest-4 (0.230s)
+oracle2 scenario=straight-4 bodies=4 ticks=60
+oracle2 done scenario=straight-4 (0.430s)
+oracle2 scenario=turn-4 bodies=4 ticks=60
+oracle2 done scenario=turn-4 (0.625s)
+oracle2 scenario=brake-4 bodies=4 ticks=60
+oracle2 done scenario=brake-4 (0.332s)
+oracle2 scenario=reverse-4 bodies=4 ticks=60
+oracle2 done scenario=reverse-4 (0.211s)
+oracle2 scenario=slack-4 bodies=4 ticks=70
+oracle2 done scenario=slack-4 (0.406s)
+oracle2 scenario=mass-4 bodies=4 ticks=60
+oracle2 done scenario=mass-4 (0.385s)
+oracle2 scenario=straight-32 bodies=32 ticks=40
+oracle2 done scenario=straight-32 (0.612s)
+oracle2 scenario=turn-32 bodies=32 ticks=40
+oracle2 done scenario=turn-32 (1.957s)
+oracle2 scenario=brake-32 bodies=32 ticks=40
+oracle2 done scenario=brake-32 (0.691s)
+oracle2 scenario=reverse-32 bodies=32 ticks=40
+oracle2 done scenario=reverse-32 (0.520s)
+oracle2 scenario=slack-32 bodies=32 ticks=50
+oracle2 done scenario=slack-32 (1.380s)
+oracle2 scenario=mass-32 bodies=32 ticks=40
+oracle2 done scenario=mass-32 (0.632s)
+oracle2 scenario=obstacle-wall-32 bodies=32 ticks=40
+oracle2 done scenario=obstacle-wall-32 (4.082s)
+oracle2 scenario=obstacle-unloaded-32 bodies=32 ticks=40
+oracle2 done scenario=obstacle-unloaded-32 (3.508s)
+oracle2 scenario=obstacle-solid-32 bodies=32 ticks=40
+oracle2 done scenario=obstacle-solid-32 (3.725s)
+oracle2 scenario=obstacle-tree-32 bodies=32 ticks=40
+oracle2 done scenario=obstacle-tree-32 (4.222s)
+oracle2 scenario=chains-1x32 bodies=32 ticks=30
+oracle2 done scenario=chains-1x32 (0.409s)
+oracle2 scenario=chains-2x32 bodies=64 ticks=30
+oracle2 done scenario=chains-2x32 (0.964s)
+oracle2 scenario=chains-4x32 bodies=128 ticks=30
+oracle2 done scenario=chains-4x32 (2.403s)
+oracle2 scenario=unload-replacement-32 bodies=32 ticks=40
+oracle2 done scenario=unload-replacement-32 (0.512s)
+oracle2 scenario=topology-change-32 bodies=32 ticks=40
+oracle2 done scenario=topology-change-32 (4.341s)
+oracle2 scenario=geometry-4 bodies=4 ticks=60
+oracle2 done scenario=geometry-4 (0.442s)
+oracle2 scenario=inputs-4 bodies=4 ticks=60
+oracle2 done scenario=inputs-4 (0.616s)
+PASS lua exception contract: identical partial state and message (Method name is null java.lang.NullPointerException)
+PASS oracle 2/3 lua-vs-lua: old frozen Lua module vs live Lua module (33.890s)
+oracle3 scenario=rest-1 bodies=1 ticks=50
+oracle3 done scenario=rest-1 (0.030s)
+oracle3 scenario=straight-1 bodies=1 ticks=70
+oracle3 done scenario=straight-1 (0.031s)
+oracle3 scenario=turn-1 bodies=1 ticks=70
+oracle3 done scenario=turn-1 (0.030s)
+oracle3 scenario=rest-4 bodies=4 ticks=40
+oracle3 done scenario=rest-4 (0.099s)
+oracle3 scenario=straight-4 bodies=4 ticks=60
+oracle3 done scenario=straight-4 (0.233s)
+oracle3 scenario=turn-4 bodies=4 ticks=60
+oracle3 done scenario=turn-4 (0.273s)
+oracle3 scenario=brake-4 bodies=4 ticks=60
+oracle3 done scenario=brake-4 (0.154s)
+oracle3 scenario=reverse-4 bodies=4 ticks=60
+oracle3 done scenario=reverse-4 (0.098s)
+oracle3 scenario=slack-4 bodies=4 ticks=70
+oracle3 done scenario=slack-4 (0.207s)
+oracle3 scenario=mass-4 bodies=4 ticks=60
+oracle3 done scenario=mass-4 (0.189s)
+oracle3 scenario=straight-32 bodies=32 ticks=40
+oracle3 done scenario=straight-32 (0.275s)
+oracle3 scenario=turn-32 bodies=32 ticks=40
+oracle3 done scenario=turn-32 (0.913s)
+oracle3 scenario=brake-32 bodies=32 ticks=40
+oracle3 done scenario=brake-32 (0.302s)
+oracle3 scenario=reverse-32 bodies=32 ticks=40
+oracle3 done scenario=reverse-32 (0.250s)
+oracle3 scenario=slack-32 bodies=32 ticks=50
+oracle3 done scenario=slack-32 (0.642s)
+oracle3 scenario=mass-32 bodies=32 ticks=40
+oracle3 done scenario=mass-32 (0.319s)
+oracle3 scenario=obstacle-wall-32 bodies=32 ticks=40
+oracle3 done scenario=obstacle-wall-32 (1.671s)
+oracle3 scenario=obstacle-unloaded-32 bodies=32 ticks=40
+oracle3 done scenario=obstacle-unloaded-32 (1.670s)
+oracle3 scenario=obstacle-solid-32 bodies=32 ticks=40
+oracle3 done scenario=obstacle-solid-32 (1.716s)
+oracle3 scenario=obstacle-tree-32 bodies=32 ticks=40
+oracle3 done scenario=obstacle-tree-32 (2.004s)
+oracle3 scenario=chains-1x32 bodies=32 ticks=30
+oracle3 done scenario=chains-1x32 (0.197s)
+oracle3 scenario=chains-2x32 bodies=64 ticks=30
+oracle3 done scenario=chains-2x32 (0.496s)
+oracle3 scenario=chains-4x32 bodies=128 ticks=30
+oracle3 done scenario=chains-4x32 (1.319s)
+oracle3 scenario=unload-replacement-32 bodies=32 ticks=40
+oracle3 done scenario=unload-replacement-32 (0.275s)
+oracle3 scenario=topology-change-32 bodies=32 ticks=40
+oracle3 done scenario=topology-change-32 (2.091s)
+oracle3 scenario=geometry-4 bodies=4 ticks=60
+oracle3 done scenario=geometry-4 (0.199s)
+oracle3 scenario=inputs-4 bodies=4 ticks=60
+oracle3 done scenario=inputs-4 (0.238s)
+PASS persistent java-vs-lua: 60 persistent ticks, Lua backend switch, reset contract, rollback
+PASS oracle 3/3 java-vs-lua: live Java vs live Lua (16.459s)
+SCALING chains=1 bodies=32 ticks=60 stepsPerTick=2 solveMs=2.836 perBodyPerTickUs=1.477 maxCrossChainError=0.0
+SCALING chains=2 bodies=64 ticks=60 stepsPerTick=2 solveMs=4.274 perBodyPerTickUs=1.113 maxCrossChainError=0.0
+SCALING chains=4 bodies=128 ticks=60 stepsPerTick=2 solveMs=11.832 perBodyPerTickUs=1.541 maxCrossChainError=0.0
+PASS controlled scaling: identical 1/2/4 x 32-body chains (0.025s)
+PASS solver equivalence: 2112346 compared values, max absolute error=0.0, scenarios=30, elapsed=51.757s
+oracleResult=PASS
+
+STDERR

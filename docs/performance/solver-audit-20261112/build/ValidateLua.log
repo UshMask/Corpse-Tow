@@ -1,0 +1,2 @@
+PASS game Lua compilation: 64 files
+PASS game Kahlua save jobs: deferred checkpoints, write, cancellation, failure, exactly one callback

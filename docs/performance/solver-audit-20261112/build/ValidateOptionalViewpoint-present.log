@@ -1,0 +1,49 @@
+[ZB] Scanned 88 classes in package cvpworld
+[ZB] Found patch class: cvpworld.PatchBodyPresentation$Draw
+[ZB] Found patch class: cvpworld.PatchBodyPresentation$Mouse
+[ZB] Found patch class: cvpworld.PatchBodyPresentation$Shadow
+[ZB] Found patch class: cvpworld.PatchBodyPresentation$ShadowScope
+[ZB] Found patch class: cvpworld.PatchChunkSaveAck
+[ZB] Found patch class: cvpworld.PatchFreeRopeFog
+[ZB] Found patch class: cvpworld.PatchFreeRopeScene
+[ZB] Found patch class: cvpworld.PatchPlayerSaveAck
+[ZB] Found patch class: cvpworld.PatchRopeSnapshot
+[ZB] Found patch class: cvpworld.PatchSkeletonRotting
+[ZB] Found patch class: cvpworld.PatchSkeletonUpdate
+[ZB] Found patch class: cvpworld.PatchVehicleMotion
+[ZB] Found patch class: cvpworld.PatchVehicleRemoval
+[ZB] Scanned 11 classes in package cvprender
+[ZB] Found patch class: cvprender.PatchBodyPlacement$Draw
+[ZB] Found patch class: cvprender.PatchBodyPlacement$Sphere
+[ZB] Found patch class: cvprender.PatchCamera
+[ZB] Found patch class: cvprender.PatchCorpses
+[ZB] Found patch class: cvprender.PatchFreeLinks
+[ZB] Found patch class: cvprender.PatchPose
+[ZB] Found patch class: cvprender.PatchRopeVehicle
+java.exe : WARNING: A terminally deprecated method in sun.misc.Unsafe has been called
+At <REPO>\tools\Project.ps1:138 char:5
++     & $exe @arguments *> $log
++     ~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (WARNING: A term...has been called:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+WARNING: sun.misc.Unsafe::objectFieldOffset has been called by net.bytebuddy.dynamic.loading.ClassInjector$UsingUnsafe$
+Dispatcher$CreationAction (file:/<GAME>/ZombieBuddy.jar)
+WARNING: Please consider reporting this to the maintainers of class net.bytebuddy.dynamic.loading.ClassInjector$UsingUn
+safe$Dispatcher$CreationAction
+WARNING: sun.misc.Unsafe::objectFieldOffset will be removed in a future release
+[ZB] patching viewpoint.render.ModelDraws.add with 1 advice(s)
+[ZB] hasMultipleSignatures: false, hasAllArguments: false, hasNoParamMethod: false, inferredTypes: null
+[ZB] patching viewpoint.render.ModelDraws.bounds with 1 advice(s)
+[ZB] hasMultipleSignatures: false, hasAllArguments: false, hasNoParamMethod: false, inferredTypes: null
+[ZB] Transformed: viewpoint.render.ModelDraws (retransformed)
+[ZB] Explicitly retransforming 1 already-loaded class(es)
+[ZB] patching viewpoint.render.ModelDraws.add with 1 advice(s)
+[ZB] hasMultipleSignatures: false, hasAllArguments: false, hasNoParamMethod: false, inferredTypes: null
+[ZB] patching viewpoint.render.ModelDraws.bounds with 1 advice(s)
+[ZB] hasMultipleSignatures: false, hasAllArguments: false, hasNoParamMethod: false, inferredTypes: null
+[ZB] Transformed: viewpoint.render.ModelDraws (retransformed)
+[ZB] patching viewpoint.game.WorldText.snapshot with 1 advice(s)
+[ZB] hasMultipleSignatures: false, hasAllArguments: false, hasNoParamMethod: false, inferredTypes: null
+[ZB] Transformed: viewpoint.game.WorldText (new load)
+PASS optional Viewpoint: present

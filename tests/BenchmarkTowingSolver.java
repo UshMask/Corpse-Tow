@@ -7,101 +7,91 @@ import se.krka.kahlua.j2se.J2SEPlatform;
 import se.krka.kahlua.luaj.compiler.LuaCompiler;
 import se.krka.kahlua.vm.*;
 
-/**
- * Reproducible JVM benchmark and old-vs-new equivalence check for the native
- * towing solver. Run through tools/solver_bench.py, which compiles the current
- * CorpseProxyLab/source tree plus a renamed copy of the frozen baseline
- * (tests/fixtures/solver_baseline/TowingSolver.java -> TowingSolverBaseline)
- * and starts this class in the real game JVM.
- *
- * The scenario matrix and inputs intentionally mirror the scenario loop of
- * tests/ValidateTowingSolver.java (same fixtures, dt pattern, source motion,
- * world obstacles, spread inputs, failure injection) so this benchmark keeps
- * measuring the behaviour the parity validator covers.
- *
- * Timed region: only the solver calls. Fixture construction, Kahlua record
- * updates and checksum walking of the published records are excluded.
- * Checksums are FNV-1a 64 over the IEEE bit patterns of the accumulated load,
- * the published group physics fields and the published body fields per tick.
- * A failing checksum/bit comparison means the optimized solver is no longer
- * equivalent to the frozen baseline.
+/** Test-only API benchmark, not a pure numerical-core or game-frame benchmark.
+ * Each pass owns prepared state for its entire sequence and releases in finally.
+ * API time includes Body.read, physics/world queries and publication (Body.write).
+ * Input table updates, caller seed reads, checksum walks and lifecycle are separate.
+ * Counters are disabled. Timer overhead is not subtracted. See runner for JVM forks.
  */
 public final class BenchmarkTowingSolver {
-    static final int TICKS=180;
-    static final String[] NAMES={
-        "single-rope",
-        "single-chain-gear",
-        "single-rope-wall",
-        "single-chain-tree",
-        "single-rope-missing-cell",
-        "single-chain-solid",
-        "chain32-straight",
-        "individual32-wall",
-        "chain32-weave",
-        "individual32-sinusoid",
-        "chain32-jump-gap",
-        "individual32-failed-body"};
-    static final String[] BODY_FIELDS={
-        "x","y","angle","vx","vy","angularVelocity","ax","ay","takeup","taut","blocked",
-        "ropeBlocked","loadMass","loadConnected","pushX","pushY","spreadRemaining"};
-    static final String[] GROUP_FIELDS={
-        "nativeGap","nativeObstruction","nativeUnconverged","nativeFallback",
-        "solverResidual","solverIterations","recoverySteps"};
-    static final String[] COUNTER_FIELDS={
-        "solverSubsteps","solverConstraintCalls","solverIterationsTotal",
-        "solverSearchEntries","solverFallbacks","solverLimitHits"};
-    static final long FNV_OFFSET=0xcbf29ce484222325L,FNV_PRIME=0x100000001b3L,PRESENT=0x9e3779b97f4a7c15L;
-
-    static KahluaThread thread;static KahluaTable env;static J2SEPlatform platform;
-
-    static final class ScenarioResult {
-        int index,bodies,ticks,requestedSteps,bitDiffs;double maxAbsError;
-        double[] baselineMs,currentMs;long baselineChecksum,currentChecksum;
-        long counterSubsteps,counterIterations,counterCalls,counterSearchEntries,counterLimitHits,counterFallbacks;
-        boolean countersPresent,countersChecksumMatch;String countersBackend="missing";
-        String name(){return NAMES[index];}
-        double baselineMin(){return min(baselineMs);}
-        double currentMin(){return min(currentMs);}
-        double speedup(){double b=baselineMin(),c=currentMin();return c>0?b/c:0;}
-    }
+    static final String[] NAMES={"single-rope","single-chain-gear","single-rope-wall",
+        "single-chain-tree","single-rope-missing-cell","single-chain-solid",
+        "chain32-straight","individual32-wall","chain32-weave","individual32-sinusoid",
+        "chain32-jump-gap","individual32-failed-body","chain4","individual4","chain8",
+        "individual8","four-groups-chain32","idle-no-call"};
+    static final String[] BODY_FIELDS={"x","y","angle","vx","vy","angularVelocity","ax","ay",
+        "takeup","ropeConstraintReady","taut","blocked","ropeBlocked","loadMass","loadConnected",
+        "pushX","pushY","spreadRemaining"};
+    static final String[] GROUP_FIELDS={"nativeGap","nativeObstruction","nativeUnconverged",
+        "nativeFallback","solverResidual","solverIterations","recoverySteps"};
+    static final long FNV_OFFSET=0xcbf29ce484222325L,FNV_PRIME=0x100000001b3L;
+    static KahluaThread thread; static KahluaTable env; static J2SEPlatform platform;
 
     public static void main(String[] args) throws Exception {
-        int warmup=1,repeats=3;String jsonPath=null;int[] only=null;
-        for(int i=0;i<args.length;i++) {
-            switch(args[i]) {
-                case "--warmup" -> warmup=Integer.parseInt(args[++i]);
-                case "--repeats" -> repeats=Integer.parseInt(args[++i]);
-                case "--json" -> jsonPath=args[++i];
-                case "--scenarios" -> {
-                    String[] parts=args[++i].split(",");only=new int[parts.length];
-                    for(int k=0;k<parts.length;k++)only[k]=Integer.parseInt(parts[k].trim());
-                }
-                default -> throw new IllegalArgumentException("unknown argument: "+args[i]);
-            }
+        int warmup=2,repeats=4,ticks=6000,warmupTicks=3000,orderOffset=0;
+        String jsonPath=null; int[] only=null;
+        for(int i=0;i<args.length;i++)switch(args[i]) {
+            case "--warmup" -> warmup=Integer.parseInt(args[++i]);
+            case "--warmup-ticks" -> warmupTicks=Integer.parseInt(args[++i]);
+            case "--ticks" -> ticks=Integer.parseInt(args[++i]);
+            case "--repeats" -> repeats=Integer.parseInt(args[++i]);
+            case "--order-offset" -> orderOffset=Integer.parseInt(args[++i]);
+            case "--json" -> jsonPath=args[++i];
+            case "--scenarios" -> only=Arrays.stream(args[++i].split(",")).mapToInt(Integer::parseInt).toArray();
+            default -> throw new IllegalArgumentException("unknown argument: "+args[i]);
         }
-        if(warmup<0||repeats<1)throw new IllegalArgumentException("warmup must be >=0 and repeats >=1");
-        setup();
-        String persistentBackend=persistentBackendProbe();
-        List<ScenarioResult> results=new ArrayList<>();
+        if(warmup<0||warmupTicks<1||ticks<1||repeats<1)throw new IllegalArgumentException("invalid run lengths");
+        if(only!=null)for(int s:only)if(s<0||s>=NAMES.length)throw new IllegalArgumentException("invalid scenario "+s);
+        setup(); List<Object> scenarios=new ArrayList<>(); boolean passed=true;
         for(int s=0;s<NAMES.length;s++) {
             if(only!=null&&!contains(only,s))continue;
-            results.add(measure(s,warmup,repeats));
+            List<Object> modes=new ArrayList<>();
+            for(boolean persistent:new boolean[]{false,true}) {
+                if(s==17&&persistent)continue; // idle has no API and is not duplicated as a solver result
+                for(int w=0;w<warmup;w++) {
+                    boolean oldFirst=((w+orderOffset)&1)==0;
+                    pass(s,oldFirst,persistent,warmupTicks);pass(s,!oldFirst,persistent,warmupTicks);
+                }
+                List<Object> pairs=new ArrayList<>();
+                for(int rep=0;rep<repeats;rep++) {
+                    boolean oldFirst=((rep+orderOffset)&1)==0;
+                    Map<String,Object> first=pass(s,oldFirst,persistent,ticks),second=pass(s,!oldFirst,persistent,ticks);
+                    Map<String,Object> old=oldFirst?first:second,now=oldFirst?second:first;
+                    boolean match=Objects.equals(old.get("checksum"),now.get("checksum"))
+                        &&Objects.equals(old.get("releasedChecksum"),now.get("releasedChecksum"));
+                    passed&=match;
+                    pairs.add(map("replica",rep,"order",oldFirst?"AB":"BA","baseline",old,"current",now,"checksumsMatch",match));
+                }
+                modes.add(map("api",s==17?"no-call":persistent?"solvePersistent":"solve","pairs",pairs));
+            }
+            scenarios.add(map("index",s,"name",NAMES[s],"groups",groups(s),"bodiesPerGroup",count(s),"modes",modes));
+            System.out.println("BENCH scenario="+s+" name="+NAMES[s]+" complete");
         }
-        for(ScenarioResult r:results)printResult(r);
-        boolean pass=true;
-        for(ScenarioResult r:results) {
-            if(r.bitDiffs!=0||r.maxAbsError!=0.0||r.baselineChecksum!=r.currentChecksum
-                ||!r.countersPresent||!r.countersChecksumMatch||r.currentMin()<=0)pass=false;
+        // Run bridge microdiagnostics only AFTER all primary measurements in
+        // this JVM, on different fixtures. Never subtract them from API timings.
+        List<Object> bridges=new ArrayList<>();
+        for(int s=0;s<NAMES.length-1;s++)if(only==null||contains(only,s)) {
+            for(boolean persistent:new boolean[]{false,true}) {
+                boolean oldFirst=(orderOffset&1)==0;
+                var first=bridge(s,oldFirst,persistent,Math.min(ticks,1000));
+                var second=bridge(s,!oldFirst,persistent,Math.min(ticks,1000));
+                passed&=Objects.equals(first.get("checksum"),second.get("checksum"));
+                bridges.add(map("index",s,"api",persistent?"solvePersistent":"solve",
+                    "baseline",oldFirst?first:second,"current",oldFirst?second:first));
+            }
         }
-        double baselineTotal=0,currentTotal=0;
-        for(ScenarioResult r:results){baselineTotal+=r.baselineMin();currentTotal+=r.currentMin();}
-        System.out.println(String.format(Locale.ROOT,
-            "BENCH totals scenarios=%d baseline_min_ms=%.3f current_min_ms=%.3f speedup=%.3f persistent_backend=%s",
-            results.size(),baselineTotal,currentTotal,currentTotal>0?baselineTotal/currentTotal:0,persistentBackend));
-        String json=toJson(results,warmup,repeats,persistentBackend,pass);
-        if(jsonPath!=null)Files.writeString(Path.of(jsonPath),json,StandardCharsets.UTF_8);
-        System.out.println("BENCH "+(pass?"PASS":"FAIL"));
-        if(!pass)System.exit(1);
+        Map<String,Object> result=map("schema",2,"harness","BenchmarkTowingSolver","javaVersion",System.getProperty("java.version"),
+            "os",System.getProperty("os.name"),"arch",System.getProperty("os.arch"),
+            "availableProcessors",Runtime.getRuntime().availableProcessors(),
+            "currentVersion",TowingSolver.version(),"baselineVersion",TowingSolverBaseline.version(),
+            "ticks",ticks,"warmup",warmup,"warmupTicks",warmupTicks,"repeats",repeats,"orderOffset",orderOffset,
+            "checksumAlgorithm","FNV1a64 over per-tick return, published body/group values; full history again after release",
+            "timingContract","API includes sync/read, physics, world queries, publication/write; excludes input updates, seed reads, checksums, prepare/release. No core decomposition. No timer subtraction.",
+            "scenarios",scenarios,"bridgeDiagnostics",bridges,
+            "bridgeContract","Separate initialized clone fixtures, after all primary measurements; repeated Body.read(mode) and Body.write(mode) only, no physics, no group publication, no input advancement. Not an additive API decomposition; never subtract.",
+            "result",passed?"pass":"fail");
+        if(jsonPath!=null)Files.writeString(Path.of(jsonPath),json(result),StandardCharsets.UTF_8);
+        System.out.println("BENCH "+(passed?"PASS":"FAIL"));if(!passed)System.exit(1);
     }
 
     static void setup() throws Exception {
@@ -115,7 +105,7 @@ public final class BenchmarkTowingSolver {
         var modules=(KahluaTable)env.rawget("modules");
         for(String name:new String[]{"CVP_Rope","CVP_LinkObstacles","CVP_Geometry","CVP_Load","CVP_Core","CVP_GroupConstraints"})
             modules.rawset(name,eval(Files.readString(Path.of("CorpseProxyLab/42/media/lua/shared/"+name+".lua"))));
-        eval("Rope=require 'CVP_Rope';O=require 'CVP_LinkObstacles';Geometry=require 'CVP_Geometry';Load=require 'CVP_Load';Core=require 'CVP_Core';Group=require 'CVP_GroupConstraints'");
+        eval("Geometry=require 'CVP_Geometry'");
         eval("""
             function fixture(count,chain,elastic)
                 local records={}
@@ -139,273 +129,189 @@ public final class BenchmarkTowingSolver {
         return result.length>1?result[1]:null;
     }
     static boolean contains(int[] values,int value){for(int v:values)if(v==value)return true;return false;}
-    static int count(int scenario){return scenario<6?1:32;}
-    static boolean chain(int scenario){return scenario%2==0;}
-    static boolean elastic(int scenario){return scenario%3!=0;}
-
-    /** Same inputs as the ValidateTowingSolver scenario loop. */
+    static int count(int s){return s==17?0:s<6?1:s==12||s==13?4:s==14||s==15?8:32;}
+    static int groups(int s){return s==17?0:s==16?4:1;}
+    static boolean chain(int s){return s%2==0;}
+    static boolean elastic(int s){return s%3!=0;}
     static final class Inputs {
-        final double dt,rx,ry,h;final int steps;
-        Inputs(int scenario,int tick) {
-            dt=tick==40?.5:new double[]{1./30,1./60,1./144,1./500,.1}[tick%5];
+        final double rx,ry,h;final int steps;
+        Inputs(int s,int tick) {
+            // Bounded, deterministic long motion, not an ever-increasing root that
+            // leaves normal fixtures permanently gap-blocked during long runs.
+            double dt=tick%1200==40?.5:new double[]{1./30,1./60,1./144,1./500,.1}[tick%5];
             steps=Math.max(1,(int)Math.ceil(dt*120-1e-9));h=dt/steps;
-            double x=1+tick*.02,y=.5+(scenario>=6?Math.sin(tick*.04):0);
-            if(scenario==9)x=1+Math.sin(tick*.04)*3;
-            if(scenario==10&&tick>70)x+=200;
+            double x=1+3*Math.sin(tick*.006),y=.5+(s>=7?Math.sin(tick*.009):0);
+            if(s==9)x=1+Math.sin(tick*.012)*3;
+            if(s==10&&tick%1200>700)x+=200; // explicit gap/failure scene, not throughput proxy
             rx=x;ry=y;
         }
     }
-    static void applyInputs(KahluaTable records,int scenario,int tick,double rx,double ry) {
-        int count=count(scenario);
-        for(int i=1;i<=count;i++) {
+    static void applyInputs(KahluaTable records,int s,int tick,Inputs in) {
+        for(int i=1;i<=count(s);i++) {
             var b=(KahluaTable)records.rawget(i);var p=TowingSolver.table(b,"sourceSample");
-            p.rawset("x",rx);p.rawset("y",ry);
-            if(scenario==11&&tick==80)b.rawset("failed",true);
-            if(count==1) {
-                b.rawset("spreadSpeed",tick>=30&&tick<140?.2:0.);
+            p.rawset("x",in.rx);p.rawset("y",in.ry);
+            // The teleport is a gap-rejection control, not a 100 m dragging workload.
+            // Teleport interpolation remains far beyond the 4 m cutoff: reject before sweeps.
+            if(s==10)b.rawset("maxGapSquared",16.);
+            if(s==11)b.rawset("failed",tick%1200>=800?true:null);
+            if(count(s)==1) {
+                b.rawset("spreadSpeed",tick%180>=30&&tick%180<140?.2:0.);
                 b.rawset("spreadRemaining",tick%3==2?null:Double.valueOf(tick%3==0?.001:0.));
                 b.rawset("spreadOffset",tick%2==0?Double.valueOf(.1):null);b.rawset("spreadScale",.65);
                 b.rawset("spreadPush",.6);b.rawset("spreadNX",Math.sin(tick*.01));b.rawset("spreadNY",Math.cos(tick*.01));
             }
         }
     }
-    static KahluaTable fixture(int scenario) throws Exception {
-        return (KahluaTable)eval("return fixture("+count(scenario)+","+chain(scenario)+","+elastic(scenario)+")");
-    }
-    static SolverEnvironment.World world(int scenario) {
-        final boolean wall=scenario==2||scenario==7,tree=scenario==3,missing=scenario==4,solid=scenario==5;
+    static SolverEnvironment.World world(int s) {
+        final boolean wall=s==2||s==7,tree=s==3,missing=s==4,solid=s==5;
         return new SolverEnvironment.World() {
             public int flags(int x,int y,int z){return (missing&&x==3?1:0)|(solid&&x==3?2:0)|(tree&&x==3&&y==0?4:0);}
             public boolean blocked(int x,int y,int z,int bx,int by){return wall&&((x<3)!=(bx<3));}
         };
     }
-    static int requestedSteps(int scenario) {
-        int total=0;
-        for(int tick=0;tick<TICKS;tick++){Inputs in=new Inputs(scenario,tick);total+=in.steps;}
-        return total;
-    }
-    static double seedX(KahluaTable records,double fallback){return TowingSolver.n((KahluaTable)records.rawget(1),"ax",fallback);}
-    static double seedY(KahluaTable records,double fallback){return TowingSolver.n((KahluaTable)records.rawget(1),"ay",fallback);}
-
-    static ScenarioResult measure(int scenario,int warmup,int repeats) throws Exception {
-        ScenarioResult r=new ScenarioResult();
-        r.index=scenario;r.bodies=count(scenario);r.ticks=TICKS;r.requestedSteps=requestedSteps(scenario);
-        r.baselineMs=new double[repeats];r.currentMs=new double[repeats];
-        for(int w=0;w<warmup;w++){pass(scenario,true,false);pass(scenario,false,false);}
-        for(int rep=0;rep<repeats;rep++) {
-            r.baselineMs[rep]=pass(scenario,true,false)/1e6;
-            r.currentMs[rep]=pass(scenario,false,false)/1e6;
-        }
-        comparePass(scenario,r);
-        countersPass(scenario,r);
-        return r;
-    }
-    /** One solver pass; returns only the accumulated solver-call nanoseconds. */
-    static long pass(int scenario,boolean baseline,boolean counters) throws Exception {
-        SolverEnvironment.World world=world(scenario);
-        KahluaTable records=fixture(scenario);
-        Object state=baseline?TowingSolverBaseline.prepare(records):TowingSolver.prepare(records);
-        KahluaTable group=platform.newTable();
-        if(counters)group.rawset("solverCounters",true);
-        long nanos=0;
-        for(int tick=0;tick<TICKS;tick++) {
-            Inputs in=new Inputs(scenario,tick);
-            applyInputs(records,scenario,tick,in.rx,in.ry);
-            double sx=seedX(records,in.rx),sy=seedY(records,in.ry);
-            long a=System.nanoTime();
-            if(baseline)TowingSolverBaseline.solve((TowingSolverBaseline.State)state,new SolverEnvironment(world),group,in.steps,in.h,sx,sy,in.rx,in.ry);
-            else TowingSolver.solve((TowingSolver.State)state,new SolverEnvironment(world),group,in.steps,in.h,sx,sy,in.rx,in.ry);
-            nanos+=System.nanoTime()-a;
-        }
-        return nanos;
-    }
-    /** Lock-step old/new pass: checksums, bit differences and max absolute error. */
-    static void comparePass(int scenario,ScenarioResult r) throws Exception {
-        SolverEnvironment.World world=world(scenario);
-        int count=count(scenario);
-        KahluaTable oldRecords=fixture(scenario),newRecords=fixture(scenario);
-        var oldState=TowingSolverBaseline.prepare(oldRecords);var newState=TowingSolver.prepare(newRecords);
-        KahluaTable oldGroup=platform.newTable(),newGroup=platform.newTable();
-        long oldHash=FNV_OFFSET,newHash=FNV_OFFSET;
-        for(int tick=0;tick<TICKS;tick++) {
-            Inputs in=new Inputs(scenario,tick);
-            applyInputs(oldRecords,scenario,tick,in.rx,in.ry);
-            applyInputs(newRecords,scenario,tick,in.rx,in.ry);
-            double sxOld=seedX(oldRecords,in.rx),syOld=seedY(oldRecords,in.ry);
-            double sxNew=seedX(newRecords,in.rx),syNew=seedY(newRecords,in.ry);
-            if(Double.doubleToLongBits(sxOld)!=Double.doubleToLongBits(sxNew)
-                ||Double.doubleToLongBits(syOld)!=Double.doubleToLongBits(syNew))
-                throw new AssertionError("seed mismatch scenario="+scenario+" tick="+tick);
-            double totalOld=TowingSolverBaseline.solve(oldState,new SolverEnvironment(world),oldGroup,in.steps,in.h,sxOld,syOld,in.rx,in.ry);
-            double totalNew=TowingSolver.solve(newState,new SolverEnvironment(world),newGroup,in.steps,in.h,sxNew,syNew,in.rx,in.ry);
-            r.maxAbsError=Math.max(r.maxAbsError,Math.abs(totalOld-totalNew));
-            if(Double.doubleToLongBits(totalOld)!=Double.doubleToLongBits(totalNew))r.bitDiffs++;
-            oldHash=mixDouble(oldHash,totalOld);newHash=mixDouble(newHash,totalNew);
-            for(String field:GROUP_FIELDS) {
-                oldHash=mixObject(oldHash,oldGroup.rawget(field));
-                newHash=mixObject(newHash,newGroup.rawget(field));
-                compareObject(oldGroup,newGroup,field,scenario,tick,-1,r);
+    static Map<String,Object> pass(int s,boolean baseline,boolean persistent,int ticks) throws Exception {
+        int n=groups(s); KahluaTable[] records=new KahluaTable[n],tables=new KahluaTable[n];
+        Object[] states=new Object[n];SolverEnvironment[] environments=new SolverEnvironment[n];
+        // Precompute immutable caller inputs outside every timed region.
+        Inputs[] inputs=new Inputs[ticks];for(int t=0;t<ticks;t++)inputs[t]=new Inputs(s,t);
+        double[] sx=new double[n],sy=new double[n];
+        long[] api=new long[ticks],updates=new long[ticks],seeds=new long[ticks],checksums=new long[ticks];
+        long prepare=0,release=0,fixture=0,hash=FNV_OFFSET,releasedHash=FNV_OFFSET;
+        long sumIterations=0; int gapTicks=0,obstructedTicks=0,unconvergedTicks=0,fallbackTicks=0,nonzeroLoadTicks=0;
+        double maxResidual=0,maxLoad=0;
+        try {
+            for(int g=0;g<n;g++) {
+                long a=System.nanoTime();
+                records[g]=(KahluaTable)eval("return fixture("+count(s)+","+chain(s)+","+elastic(s)+")");
+                tables[g]=platform.newTable();environments[g]=new SolverEnvironment(world(s));fixture+=System.nanoTime()-a;
+                a=System.nanoTime();states[g]=baseline?TowingSolverBaseline.prepare(records[g]):TowingSolver.prepare(records[g]);
+                prepare+=System.nanoTime()-a;
             }
-            for(int i=1;i<=count;i++) {
-                var a=(KahluaTable)oldRecords.rawget(i);var b=(KahluaTable)newRecords.rawget(i);
-                for(String field:BODY_FIELDS) {
-                    oldHash=mixObject(oldHash,a.rawget(field));
-                    newHash=mixObject(newHash,b.rawget(field));
-                    compareObject(a,b,field,scenario,tick,i,r);
+            for(int t=0;t<ticks;t++) {
+                Inputs in=inputs[t];long a=System.nanoTime();
+                for(int g=0;g<n;g++)applyInputs(records[g],s,t,in);
+                updates[t]=System.nanoTime()-a;a=System.nanoTime();
+                for(int g=0;g<n;g++) {
+                    var root=(KahluaTable)records[g].rawget(1);
+                    sx[g]=TowingSolver.n(root,"ax",in.rx);sy[g]=TowingSolver.n(root,"ay",in.ry);
+                }
+                seeds[t]=System.nanoTime()-a;
+                double load=0;a=System.nanoTime();
+                for(int g=0;g<n;g++) {
+                    if(baseline) {
+                        var state=(TowingSolverBaseline.State)states[g];
+                        load+=persistent?TowingSolverBaseline.solvePersistent(state,environments[g],tables[g],in.steps,in.h,sx[g],sy[g],in.rx,in.ry)
+                            :TowingSolverBaseline.solve(state,environments[g],tables[g],in.steps,in.h,sx[g],sy[g],in.rx,in.ry);
+                    } else {
+                        var state=(TowingSolver.State)states[g];
+                        load+=persistent?TowingSolver.solvePersistent(state,environments[g],tables[g],in.steps,in.h,sx[g],sy[g],in.rx,in.ry)
+                            :TowingSolver.solve(state,environments[g],tables[g],in.steps,in.h,sx[g],sy[g],in.rx,in.ry);
+                    }
+                }
+                api[t]=System.nanoTime()-a;a=System.nanoTime();hash=mixObject(hash,load);
+                boolean gap=false,obstructed=false,unconverged=false,fallback=false;
+                for(int g=0;g<n;g++) {
+                    hash=hashRecords(hash,records[g],tables[g],count(s));
+                    // Existing output only: diagnostics do not enable solverCounters
+                    // or add instrumentation inside the timed API region.
+                    KahluaTable table=tables[g];
+                    sumIterations+=(long)TowingSolver.n(table,"solverIterations",0);
+                    maxResidual=Math.max(maxResidual,TowingSolver.n(table,"solverResidual",0));
+                    gap|=TowingSolver.n(table,"nativeGap",0)>0;
+                    obstructed|=table.rawget("nativeObstruction")!=null;
+                    unconverged|=Boolean.TRUE.equals(table.rawget("nativeUnconverged"));
+                    fallback|=Boolean.TRUE.equals(table.rawget("nativeFallback"));
+                }
+                if(gap)gapTicks++;if(obstructed)obstructedTicks++;
+                if(unconverged)unconvergedTicks++;if(fallback)fallbackTicks++;
+                if(load!=0)nonzeroLoadTicks++;maxLoad=Math.max(maxLoad,Math.abs(load));
+                checksums[t]=System.nanoTime()-a;
+            }
+        } finally {
+            for(int g=0;g<n;g++)if(states[g]!=null) {
+                long a=System.nanoTime();
+                if(baseline)TowingSolverBaseline.release((TowingSolverBaseline.State)states[g]);
+                else TowingSolver.release((TowingSolver.State)states[g]);
+                release+=System.nanoTime()-a;
+            }
+        }
+        for(int g=0;g<n;g++)releasedHash=hashRecords(releasedHash,records[g],tables[g],count(s));
+        return map("apiNs",api,"inputUpdateNs",updates,"seedReadNs",seeds,"checksumNs",checksums,
+            "fixtureNs",fixture,"prepareNs",prepare,"releaseNs",release,"checksum",String.format("%016x",hash),
+            "releasedChecksum",String.format("%016x",releasedHash),"apiCalls",n*ticks,
+            "diagnostics",map("sumSolverIterations",sumIterations,"maxResidual",maxResidual,"gapTicks",gapTicks,
+                "obstructedTicks",obstructedTicks,"unconvergedTicks",unconvergedTicks,"fallbackTicks",fallbackTicks,
+                "nonzeroLoadTicks",nonzeroLoadTicks,"maxAbsLoad",maxLoad));
+    }
+    static Map<String,Object> bridge(int s,boolean baseline,boolean persistent,int ticks) throws Exception {
+        int n=groups(s);Object[] states=new Object[n];
+        KahluaTable[] records=new KahluaTable[n],tables=new KahluaTable[n];
+        long[] reads=new long[ticks],writes=new long[ticks];long hash=FNV_OFFSET;
+        try {
+            for(int g=0;g<n;g++) {
+                records[g]=(KahluaTable)eval("return fixture("+count(s)+","+chain(s)+","+elastic(s)+")");
+                tables[g]=platform.newTable();var environment=new SolverEnvironment(world(s));
+                if(baseline) {
+                    var state=TowingSolverBaseline.prepare(records[g]);states[g]=state;
+                    if(persistent)TowingSolverBaseline.solvePersistent(state,environment,tables[g],1,1./120,1,.5,1,.5);
+                    else TowingSolverBaseline.solve(state,environment,tables[g],1,1./120,1,.5,1,.5);
+                } else {
+                    var state=TowingSolver.prepare(records[g]);states[g]=state;
+                    if(persistent)TowingSolver.solvePersistent(state,environment,tables[g],1,1./120,1,.5,1,.5);
+                    else TowingSolver.solve(state,environment,tables[g],1,1./120,1,.5,1,.5);
                 }
             }
-        }
-        r.baselineChecksum=oldHash;r.currentChecksum=newHash;
-    }
-    /** Current solver with counters enabled; also proves counters do not change output. */
-    static void countersPass(int scenario,ScenarioResult r) throws Exception {
-        SolverEnvironment.World world=world(scenario);
-        int count=count(scenario);
-        KahluaTable records=fixture(scenario);
-        var state=TowingSolver.prepare(records);
-        KahluaTable group=platform.newTable();group.rawset("solverCounters",true);
-        long hash=FNV_OFFSET;
-        for(int tick=0;tick<TICKS;tick++) {
-            Inputs in=new Inputs(scenario,tick);
-            applyInputs(records,scenario,tick,in.rx,in.ry);
-            double sx=seedX(records,in.rx),sy=seedY(records,in.ry);
-            double total=TowingSolver.solve(state,new SolverEnvironment(world),group,in.steps,in.h,sx,sy,in.rx,in.ry);
-            hash=mixDouble(hash,total);
-            for(String field:GROUP_FIELDS)hash=mixObject(hash,group.rawget(field));
-            for(int i=1;i<=count;i++) {
-                var b=(KahluaTable)records.rawget(i);
-                for(String field:BODY_FIELDS)hash=mixObject(hash,b.rawget(field));
+            // Diagnostic-only loop warmup, distinct from primary solver warmup.
+            for(int t=-200;t<ticks;t++) {
+                long a=System.nanoTime();
+                for(Object state:states) {
+                    if(baseline)for(var body:((TowingSolverBaseline.State)state).bodies)body.read(persistent);
+                    else for(var body:((TowingSolver.State)state).bodies)body.read(persistent);
+                }
+                long read=System.nanoTime()-a;a=System.nanoTime();
+                for(Object state:states) {
+                    if(baseline)for(var body:((TowingSolverBaseline.State)state).bodies)body.write(persistent);
+                    else for(var body:((TowingSolver.State)state).bodies)body.write(persistent);
+                }
+                long write=System.nanoTime()-a;if(t>=0){reads[t]=read;writes[t]=write;}
             }
-            Object backend=group.rawget("solverBackend");
-            if(backend instanceof String)r.countersBackend=(String)backend;
-            r.counterSubsteps+=(long)TowingSolver.n(group,"solverSubsteps",-1);
-            r.counterIterations+=(long)TowingSolver.n(group,"solverIterationsTotal",-1);
-            r.counterCalls+=(long)TowingSolver.n(group,"solverConstraintCalls",-1);
-            r.counterSearchEntries+=(long)TowingSolver.n(group,"solverSearchEntries",-1);
-            r.counterLimitHits+=(long)TowingSolver.n(group,"solverLimitHits",-1);
-            r.counterFallbacks+=(long)TowingSolver.n(group,"solverFallbacks",-1);
-        }
-        r.countersPresent=r.counterCalls>=0&&r.counterSubsteps>=0&&r.counterIterations>=0
-            &&r.counterSearchEntries>=0&&r.counterLimitHits>=0&&r.counterFallbacks>=0;
-        r.countersChecksumMatch=hash==r.currentChecksum;
-    }
-    static String persistentBackendProbe() throws Exception {
-        SolverEnvironment.World world=world(0);
-        KahluaTable records=fixture(0);
-        var state=TowingSolver.prepare(records);
-        KahluaTable group=platform.newTable();group.rawset("solverCounters",true);
-        try {
-            TowingSolver.solvePersistent(state,new SolverEnvironment(world),group,1,1./120,.3,.5,.3,.5);
         } finally {
-            TowingSolver.release(state);
+            for(Object state:states)if(state!=null) {
+                if(baseline)TowingSolverBaseline.release((TowingSolverBaseline.State)state);
+                else TowingSolver.release((TowingSolver.State)state);
+            }
         }
-        Object backend=group.rawget("solverBackend");
-        return backend==null?"missing":backend.toString();
+        for(int g=0;g<n;g++)hash=hashRecords(hash,records[g],tables[g],count(s));
+        return map("bodyReadNs",reads,"bodyPublicationNs",writes,"checksum",String.format("%016x",hash));
     }
-
-    static void compareObject(KahluaTable a,KahluaTable b,String field,int scenario,int tick,int body,ScenarioResult r) {
-        Object x=a.rawget(field),y=b.rawget(field);
-        if(x instanceof Number&&y instanceof Number) {
-            double dx=((Number)x).doubleValue(),dy=((Number)y).doubleValue();
-            r.maxAbsError=Math.max(r.maxAbsError,Math.abs(dx-dy));
-            if(Double.doubleToLongBits(dx)!=Double.doubleToLongBits(dy))r.bitDiffs++;
-        } else if(!Objects.equals(x,y)&&!(x==null&&Boolean.FALSE.equals(y))&&!(y==null&&Boolean.FALSE.equals(x))) {
-            r.bitDiffs++;
+    static long hashRecords(long hash,KahluaTable records,KahluaTable group,int count) {
+        for(String f:GROUP_FIELDS)hash=mixObject(hash,group.rawget(f));
+        for(int i=1;i<=count;i++) {
+            var b=(KahluaTable)records.rawget(i);
+            for(String f:BODY_FIELDS)hash=mixObject(hash,b.rawget(f));
         }
+        return hash;
     }
-    static long mixDouble(long hash,double value){return mix(hash,Double.doubleToLongBits(value));}
     static long mixObject(long hash,Object value) {
-        if(value==null)return mix(hash,PRESENT);
-        if(value instanceof Number)return mixDouble(hash,((Number)value).doubleValue());
-        if(value instanceof Boolean)return mix(hash,(Boolean)value?0x9e3779b97f4a7c15L:0x7f4a7c159e3779b9L);
-        if(value instanceof String)return mix(hash,((String)value).hashCode());
-        return mix(hash,value.toString().hashCode());
+        long bits=value==null?0x123456789abcdefL:value instanceof Number?Double.doubleToLongBits(((Number)value).doubleValue())
+            :value instanceof Boolean?((Boolean)value?1:2):value.toString().hashCode();
+        return (hash^bits)*FNV_PRIME;
     }
-    static long mix(long hash,long value){return (hash^value)*FNV_PRIME;}
-    static double min(double[] values){double m=Double.POSITIVE_INFINITY;for(double v:values)m=Math.min(m,v);return m;}
-
-    static void printResult(ScenarioResult r) {
-        System.out.println(String.format(Locale.ROOT,
-            "BENCH scenario=%d name=%s bodies=%d ticks=%d requested_steps=%d baseline_ms=%s current_ms=%s speedup=%.3f "
-                +"baseline_checksum=0x%016x current_checksum=0x%016x bit_diffs=%d max_abs_error=%s "
-                +"counters_substeps=%d counters_iterations=%d counters_calls=%d counters_search_entries=%d "
-                +"counters_limit_hits=%d counters_fallbacks=%d counters_backend=%s counters_checksum_match=%s",
-            r.index,r.name(),r.bodies,r.ticks,r.requestedSteps,Arrays.toString(r.baselineMs),Arrays.toString(r.currentMs),
-            r.speedup(),r.baselineChecksum,r.currentChecksum,r.bitDiffs,Double.toString(r.maxAbsError),
-            r.counterSubsteps,r.counterIterations,r.counterCalls,r.counterSearchEntries,r.counterLimitHits,
-            r.counterFallbacks,r.countersBackend,r.countersChecksumMatch));
+    static Map<String,Object> map(Object... values) {
+        Map<String,Object> m=new LinkedHashMap<>();for(int i=0;i<values.length;i+=2)m.put((String)values[i],values[i+1]);return m;
     }
-
-    static String toJson(List<ScenarioResult> results,int warmup,int repeats,String persistentBackend,boolean pass) {
-        StringBuilder sb=new StringBuilder(8192);
-        sb.append('{');
-        field(sb,"harness",true,"BenchmarkTowingSolver");
-        raw(sb,"schema",false,"1");
-        field(sb,"javaVersion",false,System.getProperty("java.version",""));
-        field(sb,"javaRuntime",false,System.getProperty("java.runtime.version",""));
-        field(sb,"os",false,System.getProperty("os.name",""));
-        raw(sb,"warmup",false,Integer.toString(warmup));
-        raw(sb,"repeats",false,Integer.toString(repeats));
-        field(sb,"currentVersion",false,TowingSolver.version());
-        field(sb,"baselineVersion",false,TowingSolverBaseline.version());
-        field(sb,"checksumAlgorithm",false,"fnv1a64 over IEEE bits of accumulated load, group physics fields and published body fields per tick");
-        sb.append(",\"backend\":{");
-        field(sb,"currentTimed",true,"java-nonpersistent");
-        field(sb,"currentPersistent",false,persistentBackend);
-        field(sb,"baseline",false,"java");
-        sb.append('}');
-        sb.append(",\"scenarios\":[");
-        for(int i=0;i<results.size();i++) {
-            if(i>0)sb.append(',');
-            ScenarioResult r=results.get(i);
-            sb.append('{');
-            raw(sb,"index",true,Integer.toString(r.index));
-            field(sb,"name",false,r.name());
-            raw(sb,"bodies",false,Integer.toString(r.bodies));
-            raw(sb,"ticks",false,Integer.toString(r.ticks));
-            raw(sb,"requestedSteps",false,Integer.toString(r.requestedSteps));
-            raw(sb,"baselineMs",false,array(r.baselineMs));
-            raw(sb,"currentMs",false,array(r.currentMs));
-            field(sb,"baselineChecksum",false,String.format("0x%016x",r.baselineChecksum));
-            field(sb,"currentChecksum",false,String.format("0x%016x",r.currentChecksum));
-            raw(sb,"bitDiffs",false,Integer.toString(r.bitDiffs));
-            raw(sb,"maxAbsError",false,Double.toString(r.maxAbsError));
-            sb.append(",\"counters\":{");
-            raw(sb,"substeps",true,Long.toString(r.counterSubsteps));
-            raw(sb,"iterations",false,Long.toString(r.counterIterations));
-            raw(sb,"constraintCalls",false,Long.toString(r.counterCalls));
-            raw(sb,"searchEntries",false,Long.toString(r.counterSearchEntries));
-            raw(sb,"limitHits",false,Long.toString(r.counterLimitHits));
-            raw(sb,"fallbacks",false,Long.toString(r.counterFallbacks));
-            field(sb,"backend",false,r.countersBackend);
-            raw(sb,"checksumMatch",false,Boolean.toString(r.countersChecksumMatch));
-            sb.append('}');
-            sb.append('}');
+    static String json(Object value) {
+        if(value==null)return "null";
+        if(value instanceof String)return "\""+((String)value).replace("\\","\\\\").replace("\"","\\\"").replace("\n","\\n").replace("\r","\\r").replace("\t","\\t")+"\"";
+        if(value instanceof Number||value instanceof Boolean)return value.toString();
+        StringJoiner j;
+        if(value instanceof Map<?,?>) {
+            j=new StringJoiner(",","{","}");for(var e:((Map<?,?>)value).entrySet())j.add(json(e.getKey())+":"+json(e.getValue()));
+        } else {
+            j=new StringJoiner(",","[","]");
+            if(value instanceof long[])for(long x:(long[])value)j.add(Long.toString(x));
+            else for(Object x:(Iterable<?>)value)j.add(json(x));
         }
-        sb.append(']');
-        double baselineTotal=0,currentTotal=0;
-        for(ScenarioResult r:results){baselineTotal+=r.baselineMin();currentTotal+=r.currentMin();}
-        sb.append(",\"totals\":{");
-        raw(sb,"baselineMinMs",true,Double.toString(round3(baselineTotal)));
-        raw(sb,"currentMinMs",false,Double.toString(round3(currentTotal)));
-        raw(sb,"speedup",false,Double.toString(currentTotal>0?round3(baselineTotal/currentTotal):0));
-        sb.append('}');
-        field(sb,"result",false,pass?"pass":"fail");
-        sb.append('}');
-        return sb.toString();
+        return j.toString();
     }
-    static void raw(StringBuilder sb,String name,boolean first,String value) {
-        if(!first)sb.append(',');
-        sb.append('"').append(name).append("\":").append(value);
-    }    static void field(StringBuilder sb,String name,boolean first,String value) {
-        if(!first)sb.append(',');
-        sb.append('"').append(name).append("\":\"").append(escape(value)).append('"');
-    }
-    static String array(double[] values) {
-        StringBuilder sb=new StringBuilder("[");
-        for(int i=0;i<values.length;i++){if(i>0)sb.append(',');sb.append(Double.toString(round3(values[i])));}
-        return sb.append(']').toString();
-    }
-    static double round3(double v){return Math.round(v*1000.0)/1000.0;}
-    static String escape(String value){return value.replace("\\","\\\\").replace("\"","\\\"");}
 }
