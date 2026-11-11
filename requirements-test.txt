@@ -1,0 +1,2 @@
+# Lua 5.1 matches the fixture runtime; import lupa.lua51, not the default Lua.
+lupa==2.8

@@ -1,0 +1,24 @@
+Corpse Tow 0.7.8
+
+Attachments and menus
+- Attachment and material-return actions now wait for save completion across game ticks. Existing towing continues during the wait; the action result is returned after persistence is confirmed.
+- Repeated multiplayer requests do not start another material transfer. Item ownership and properties are checked again after a save wait; unfinished transfers remain recoverable.
+- A free body's menu can continue an eligible sequential train. Multiple candidates offer an explicit choice with highlighting, using spare rope length or the next rope.
+- Attaching a body to a vehicle with rope now uses shared rope length. Improved messages for required rope, train selection and remaining length in English and Russian.
+
+Rendering
+- Multiple ropes attached to the same vehicle point share one visible attachment, with matching highlighting.
+- Isometric rendering prepares the shader once per rope and reuses lighting for adjacent segments in the same square during that pass. Native fog, depth and the separate Viewpoint rendering path are retained.
+- Reduced length calculations, repeated coefficients and temporary tables while building rope curves. Java compares unchanged points; sleeping ropes still skip resubmission. Curve shape is preserved.
+- Prepare the VBO once per rope and skip repeated shader lighting updates for adjacent segments with identical colours. Segment order, transforms and cleanup after errors are preserved.
+- The ground-rope pickup marker is no longer recreated every frame when its square and player have not changed.
+
+Runtime and multiplayer
+- Batched body-pose reads from Java and shared square membership checks retain live identity validation and error rollback.
+- Removed redundant body-angle updates caused by numeric precision differences, repeated network snapshot preparation and sorting of unchanged multiplayer chains.
+- Reduced work for idle clients and disabled features. Mass checks are staggered; enabling an effect does not apply wear accumulated while it was disabled.
+
+Updating
+Update the server and all clients together, then fully restart them: the Java component has changed. The ZombieBuddy Java agent is required on the server and clients. Viewpoint is optional. Back up the complete world before updating.
+
+In a local comparison against 0.7.7 with 32 bodies (isometric view, 1280×720, three drives per build), median FPS rose from 113 to 146 and 1% low from 51 to 67 FPS. This is a test-rig result, not a guaranteed gain: window focus and background load were not fully identical; total rope length differed by less than 0.001 m. A separate diagnostic run showed roughly 36% less time spent preparing visuals. Vehicle-to-vehicle mechanics and a new movement model are not part of this release.

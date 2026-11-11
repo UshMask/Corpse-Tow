@@ -1,0 +1,17 @@
+Corpse Tow 0.7.6
+
+- Fixed rope jitter at moving vehicle attachment points: attachment positions now match the vehicle rendering in the same frame. Removed premature waiting for render preparation.
+- Fixed Viewpoint rope visibility outside the character's facing direction on explored, unobstructed ground. Obstacle visibility checks are retained.
+- Fixed rope rendering order relative to fog in the stock isometric camera.
+- Added animal carcass towing, including batch attachment. Resistance accounts for carcass weight; disabling player-corpse towing no longer blocks animals.
+- Added optional carcass wear with adjustable intensity. At normal intensity, the first 100 m do not reduce the meat ratio; losses then increase in steps, up to 10%. Age, hides and inventory contents remain unchanged; human clothing wear and abrasion do not apply to carcasses.
+- Bodies on separate vehicle tethers spread within dense groups while retaining their lateral order, without forming rows relative to the vehicle axis. Added an enable switch, width and intensity settings.
+- Spreading only acts during actual pulling: slack ropes do not move bodies, and lateral correction preserves attachment distance without adding velocity. Body chains and Horse are excluded; this does not guarantee collision-free spacing.
+- Removed repeated body sorting while the lateral order remains unchanged.
+- Added client-side simplified rope rendering: fewer segments and visual calculation passes without changing towing physics.
+- Added an Important only notification mode: hides completion messages while retaining errors and action progress.
+- Removed repeated validation of unchanged towing-item data on reads. Validation before writing and protection against modified data are retained.
+- Intermediate-joint placement now runs only for groups that actually contain those joints.
+- Fixed the carcass-wear tooltip formatting error and added Russian and English labels for the new settings.
+
+Update the server and all clients, then fully restart them to load the updated Java component. Viewpoint remains optional. The jitter fix concerns attachment rendering synchronization; it does not eliminate all movement jumps caused by network delays.

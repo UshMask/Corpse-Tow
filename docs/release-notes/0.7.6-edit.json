@@ -1,0 +1,13 @@
+{
+  "version": "0.7.6",
+  "entry": 1793063251,
+  "date": "2026-10-27",
+  "kind": "existing-changelog-text-only",
+  "languages": [
+    "russian",
+    "english"
+  ],
+  "publicVerified": true,
+  "modRepublished": false,
+  "originalPublicationRecord": "../../releases/0.7.6/publication.json"
+}

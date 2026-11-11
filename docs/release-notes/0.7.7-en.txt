@@ -1,0 +1,18 @@
+Corpse Tow 0.7.7
+
+• Ropes now have a calmer but visible texture without the previous high-contrast dark bands. Fixed texture coordinates in the standard camera while retaining Viewpoint support.
+• Added small solid rounded knots at body and Horse attachments. Vehicles keep a compact loop; fixed the loop stretching into an arc near the bumper.
+• Moved visual feet and neck attachment points closer to human bodies. The knot and rope share the same visual endpoint; physical coordinates and link length are unchanged.
+• Fixed residual jitter in stationary ropes: a settled visual curve now sleeps. Relative endpoint movement or a length change wakes it again.
+• Fixed unwanted shape changes when both endpoints move together, including braking and reversing. Obstacle checks and body physics remain active.
+• Held ends visually follow the right hand. An available hand shows a rope or chain model; occupied hands and existing item model overrides are preserved.
+• After the first confirmed attachment, the acting player sees a rope running to their hand until attachment is completed. Cancellation, errors and replacement actions remove the temporary rope and item model. This preparatory connection is visible only to the acting player.
+• Hovering over an action for a specific link highlights its rope and endpoints. Highlighting clears when the menu closes or changes and accounts for local players.
+• Hovering over a loose rope marks its actual pickup tile. Fixed a hint error in the game's Lua runtime; hidden tiles are not highlighted.
+• Reduced overlapping labels. Added a brief successful-action marker and an “End in hand” notification; “Important only” suppresses success messages. Updated Russian and English text.
+• Reduced redundant save writes and index rebuilding. Coordinate checkpoints no longer recreate working groups; equipment is still returned only after a successful write, with retry recovery preserved after failures.
+• Multiplayer no longer performs a full object scan on every snapshot; periodic reconciliation remains. Unrelated objects no longer invalidate prepared link data; reduced repeated Horse and legacy-save checks.
+• The body cache is bounded and uses weak references, and clears when the world changes or unloads. Object identity checks remain in place.
+• The Java solver reuses angle calculations and body-path checking buffers. Obstacle geometry and towing rules are preserved; no specific FPS gain is claimed.
+
+Update the server and all clients, then fully restart them: the Java component has changed. Viewpoint is optional; no separate adapter needs to be enabled.

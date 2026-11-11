@@ -132,6 +132,10 @@ local function resetTable(t)
 end
 
 D.bound = {}
+-- Installed wrappers are lifecycle state, not measurement state: reset() must
+-- never forget them or disable() cannot restore the original methods.
+D.installed = {}
+D.unavailable = {}
 
 function D.enabled() return D.on == true end
 
@@ -145,8 +149,6 @@ function D.reset()
     D.phaseOverflow = 0
     D.counterOverflow = 0
     D.gaugeOverflow = 0
-    D.installed = {}
-    D.unavailable = {}
     D.memory = {available = false, start = nil, last = nil, min = nil, max = nil, samples = 0}
     D.startedAt = D.clock()
     D.tickCount = 0
@@ -559,28 +561,39 @@ local BUILTIN_HOOKS = {
 }
 
 function D.enable(options)
+    -- An enable after a normal disable restarts cleanly. If a previous restore
+    -- failed, retry it here instead of stacking a second wrapper on an owner.
     if D.on then D.disable() end
+    if #D.installed > 0 then D.disable() end
     configure(options)
     D.on = true
     D.reset()
+    D.unavailable = {}
     for _, spec in ipairs(BUILTIN_HOOKS) do installHook(spec) end
     D.hookCount = #D.installed
     return D.snapshot()
 end
 
 function D.disable()
-    if not D.on then return false end
+    if not D.on and #D.installed == 0 then return false end
     D.on = false
+    local restored = true
     for i = #D.installed, 1, -1 do
         local entry = D.installed[i]
         local ok = pcall(function()
             if entry.hadRaw then entry.owner[entry.key] = entry.original
             else entry.owner[entry.key] = nil end
         end)
-        D.installed[i] = nil
-        if not ok then D.unavailable[#D.unavailable + 1] = 'restore:' .. tostring(entry.key) end
+        if ok then
+            D.installed[i] = nil
+        else
+            -- Keep the entry so a later disable/enable can retry the restore.
+            restored = false
+            D.unavailable[#D.unavailable + 1] = 'restore:' .. tostring(entry.key)
+        end
     end
-    return true
+    if #D.installed == 0 then D.hookCount = 0 end
+    return restored
 end
 
 local function elapsedMs()

@@ -1,0 +1,7 @@
+Corpse Tow 0.8.1
+
+- Added Spanish translations for Spain, Mexico and Chile, including towing menus and world settings.
+- Corrected percent formatting in the Spanish carcass-wear description.
+- Made attachment and removal actions clearer in context menus and added brief settings hints.
+
+ZombieBuddy is required. Viewpoint is optional.

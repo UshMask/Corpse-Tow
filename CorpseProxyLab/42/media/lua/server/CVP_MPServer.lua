@@ -8,8 +8,24 @@ local LoadWindow=require 'CVP_LoadWindow'
 local S={schema=4,authority=Runtime.new(),peers=setmetatable({},{__mode='k'}),sequence=0,
     epoch=getRandomUUID(),known={},terminal={},loadWindow=LoadWindow.new(),loadOwners=setmetatable({},{__mode='k'}),
     -- Fixed-size counters only; per-peer counterparts live on each peer.
-    stats={captures=0,publishes=0,results=0,rejected=0,rateLimited=0,duplicates=0}}
+    stats={captures=0,publishes=0,results=0,rejected=0,rateLimited=0,duplicates=0,repliesDropped=0}}
 CVPMPServer=S
+-- Rejection/replay replies share a small per-peer bucket, so one client cannot
+-- turn spam into unbounded outgoing packets. A success reply is not charged: the
+-- operation itself is already limited by the token bucket above.
+local REPLY_MAX,REPLY_REFILL=8,.008 -- burst 8, refill 8/s
+local function chargeReply(peer,now)
+    peer.replyTokens=math.min(REPLY_MAX,(peer.replyTokens or REPLY_MAX)+math.max(0,now-(peer.replyTime or now))*REPLY_REFILL)
+    peer.replyTime=now
+    if peer.replyTokens<1 then
+        S.stats.repliesDropped=S.stats.repliesDropped+1
+        if peer.stats then peer.stats.repliesDropped=peer.stats.repliesDropped+1 end
+        return false
+    end
+    peer.replyTokens=peer.replyTokens-1
+    return true
+end
+
 function S.resetStats()
     for key in pairs(S.stats) do S.stats[key]=0 end
     for _,peer in pairs(S.peers) do if peer.stats then
@@ -258,7 +274,9 @@ local function reject(p,peer,request,reason)
         S.stats.rejected=S.stats.rejected+1
         if peer.stats then peer.stats.rejected=peer.stats.rejected+1 end
     end
-    sendResult(p,peer,request,{ok=false,reason=reason,sequence=peer.publishedSequence or -1})
+    if chargeReply(peer,getTimestampMs()) then
+        sendResult(p,peer,request,{ok=false,reason=reason,sequence=peer.publishedSequence or -1})
+    end
 end
 -- Results are kept only for the recent request window (64 entries) so a lost reply
 -- can be replayed without re-running the operation or growing a table forever.
@@ -276,7 +294,8 @@ function S.command(module,name,p,args)
     if not W.session(args.session) then return end
     local now=getTimestampMs();local peer=S.peers[p]
     if not peer then peer={retired={},tokens=8,time=now,results={},lastRequest=0,publishedSequence=-1,
-        stats={publishes=0,results=0,rejected=0,rateLimited=0,duplicates=0}};S.peers[p]=peer end
+        replyTokens=REPLY_MAX,replyTime=now,
+        stats={publishes=0,results=0,rejected=0,rateLimited=0,duplicates=0,repliesDropped=0}};S.peers[p]=peer end
     if name=='sync' then
         if S.authority.saveJob then return end
         if peer.retired[args.session] then return end
@@ -305,11 +324,17 @@ function S.command(module,name,p,args)
         return
     end
     if name=='appearanceMissing' then
+        -- One repair request per second: each one invalidates visiblePages and
+        -- asks the next tick for a full state, so spamming it must not become a
+        -- snapshot amplifier.
+        if now<(peer.nextAppearanceMissing or 0) then return end
+        peer.nextAppearanceMissing=now+1000
         if W.key(args.key) and peer.appearanceAck then peer.appearanceAck[args.key]=nil;peer.snapshotVersion=nil;peer.visiblePages=nil end
         return
     end
     if name=='appearanceAck' then
-        if type(args.rows)~='table' then return end
+        if type(args.rows)~='table' or now<(peer.nextAppearanceAck or 0) then return end
+        peer.nextAppearanceAck=now+250
         local count=0
         for key,revision in pairs(args.rows) do
             count=count+1;if count>64 then return end
@@ -338,20 +363,17 @@ function S.command(module,name,p,args)
     end
     if p:isDead() or not W.integer(args.request) or args.request<1 then return end
     -- A retried request that already completed replays its stored answer. This path
-    -- never executes, captures or publishes; a planned tick publication (the peer
-    -- heartbeat is scheduled for the next interval) supplies any state the client
-    -- may still be missing, so drain() cannot wait on an unpublished sequence.
+    -- never executes, captures or publishes. The client's bounded sync recovery
+    -- (armed only when its pending result has sequence > C.sequence) requests a
+    -- state, so a replay cannot force a full publication on every retry.
     local stored=peer.results[args.request]
     if stored then
         S.stats.duplicates=S.stats.duplicates+1
         if peer.stats then peer.stats.duplicates=peer.stats.duplicates+1 end
-        if stored.ok==true then
-            -- The retry proves the client missed the reply, so it may also have
-            -- missed the state. Ask the planned tick publication for a full state
-            -- (the tick snapshot is shared, so no extra capture is built here).
-            peer.heartbeat=0;peer.visiblePages=nil;peer.visibleReady=nil
+        if chargeReply(peer,now) then
+            sendResult(p,peer,args.request,G.copy(stored))
         end
-        sendResult(p,peer,args.request,G.copy(stored));return
+        return
     end
     if peer.pendingRequests and peer.pendingRequests[args.request] then return end
     -- One token budget gates everything below that can touch the graph, jobs or a
@@ -385,6 +407,7 @@ function S.command(module,name,p,args)
             remember(peer,args.request,answer)
             S.stats.rejected=S.stats.rejected+1
             if peer.stats then peer.stats.rejected=peer.stats.rejected+1 end
+            if not chargeReply(peer,getTimestampMs()) then return end
         end
         sendResult(p,peer,args.request,answer)
     end
