@@ -21,6 +21,7 @@ MODULES = (
     'test_link_multiplayer',
     'test_link_performance',
     'test_diagnostics',
+    'test_diagnostics_bench',
 )
 
 
