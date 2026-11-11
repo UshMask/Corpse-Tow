@@ -16,9 +16,11 @@ import java.security.MessageDigest;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.PreparedStatement;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.IdentityHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Queue;
 import java.util.UUID;
@@ -121,6 +123,55 @@ public final class EquipmentPersistence {
     static final class CorruptLedger extends IOException {
         CorruptLedger(String message) { super(message); }
     }
+    // A ledger this build understands well enough to keep, but must not rewrite:
+    // a newer world/format or schema. Callers report it, they never reset it.
+    static final class UnsupportedLedger extends IOException {
+        UnsupportedLedger(String message) { super(message); }
+    }
+    private static String describe(Throwable error) {
+        String message=error.getMessage();
+        return message==null || message.isBlank()?error.getClass().getSimpleName():message;
+    }
+    private static KahluaTable statusEnvelope(String status,KahluaTable data,String reason) {
+        KahluaTable result=LuaManager.platform.newTable();
+        result.rawset("status",status);
+        if(data!=null) result.rawset("data",data);
+        if(reason!=null) result.rawset("reason",reason);
+        return result;
+    }
+    // Only an established corruption may replace the ledger. A failed backup or
+    // replacement keeps the old file and reports an error; it is never "empty".
+    private static KahluaTable recoveredEnvelope(Throwable corruption) {
+        try {
+            KahluaTable result=statusEnvelope("ok",resetInvalidStore(),null);
+            result.rawset("recovered",true);
+            result.rawset("reason",describe(corruption));
+            return result;
+        } catch(Exception failure) {
+            return statusEnvelope("error",null,"equipment recovery failed: "+describe(failure));
+        }
+    }
+    // Explicit read classification for Lua. Never throws and never returns nil:
+    // missing means no journal, ok carries data, unsupported/error carry a reason.
+    public static KahluaTable readEnvelope() {
+        try {
+            authority();KahluaTable data;
+            try { data=readFile(ledger()); }
+            catch(CorruptLedger corrupt) { return recoveredEnvelope(corrupt); }
+            catch(UnsupportedLedger unsupported) { return statusEnvelope("unsupported",null,describe(unsupported)); }
+            if(data==null) return statusEnvelope("missing",null,"equipment ledger missing");
+            try { SkeletonLifetime.install(data); }
+            catch(IllegalArgumentException corruptClock) {
+                Object version=data.rawget("version");
+                if(!Double.valueOf(2).equals(version) && !Double.valueOf(3).equals(version))
+                    return statusEnvelope("unsupported",null,describe(corruptClock));
+                return recoveredEnvelope(corruptClock);
+            }
+            return statusEnvelope("ok",data,null);
+        } catch(CorruptLedger corrupt) { return recoveredEnvelope(corrupt); }
+        catch(UnsupportedLedger unsupported) { return statusEnvelope("unsupported",null,describe(unsupported)); }
+        catch(Exception error) { return statusEnvelope("error",null,describe(error)); }
+    }
     public static KahluaTable read() throws Exception {
         authority();KahluaTable data;
         try { data=readFile(ledger()); }
@@ -158,6 +209,186 @@ public final class EquipmentPersistence {
         authority();var clocks=SkeletonLifetime.readClocks(data);
         writeFile(ledger(),data,(a,b)->Files.move(a,b,StandardCopyOption.ATOMIC_MOVE,StandardCopyOption.REPLACE_EXISTING));
         SkeletonLifetime.installClocks(clocks);return true;
+    }
+    // Explicit synchronous write classification. Lua accepts only status
+    // "confirmed"; every exception becomes a failed envelope so a nil result is
+    // never mistaken for a successful, durable write.
+    public static KahluaTable writeEnvelope(KahluaTable data) {
+        try {
+            return write(data)?statusEnvelope("confirmed",null,null)
+                :statusEnvelope("failed",null,"equipment write not confirmed");
+        } catch(Exception error) {
+            return statusEnvelope("failed",null,describe(error));
+        }
+    }
+    // ---- Installed-bridge compatibility probe -------------------------------
+    // Every game/ZombieBuddy member the save barriers reach through reflection is
+    // resolved here without performing a save. All missing members are collected
+    // so the reason Lua receives names the exact incompatible piece, and the probe
+    // never lets a LinkageError or reflection failure escape.
+    private static final String[] CAPABILITY_GROUPS={
+        "bridge","ledger","playerCheckpointMp","playerCheckpointSp",
+        "squareCheckpointMp","squareCheckpointSp","skeletonLifetime","worldVersion"};
+    private static void capabilityFailure(List<String> missing,Map<String,Boolean> features,String group,String detail) {
+        missing.add(group+": "+detail);features.put(group,false);
+    }
+    private static String capabilitySignature(Class<?>... types) {
+        StringBuilder text=new StringBuilder("(");
+        for(int i=0;i<types.length;i++) { if(i>0) text.append(',');text.append(types[i]==null?"?":types[i].getName()); }
+        return text.append(')').toString();
+    }
+    private static Class<?> capabilityClass(List<String> missing,Map<String,Boolean> features,String group,String name) {
+        try { return Class.forName(name,false,EquipmentPersistence.class.getClassLoader()); }
+        catch(Exception|LinkageError error) {
+            capabilityFailure(missing,features,group,"missing class "+name+" ("+describe(error)+")");return null;
+        }
+    }
+    private static Field capabilityField(List<String> missing,Map<String,Boolean> features,String group,Class<?> owner,String name) {
+        if(owner==null) return null;
+        try { Field value=owner.getDeclaredField(name);value.setAccessible(true);return value; }
+        catch(Exception|LinkageError error) {
+            capabilityFailure(missing,features,group,"missing field "+owner.getName()+"."+name+" ("+describe(error)+")");return null;
+        }
+    }
+    private static void capabilityMethod(List<String> missing,Map<String,Boolean> features,String group,Class<?> owner,String name,Class<?>... types) {
+        if(owner==null) return;
+        try { owner.getDeclaredMethod(name,types).setAccessible(true); }
+        catch(Exception|LinkageError error) {
+            capabilityFailure(missing,features,group,"missing method "+owner.getName()+"."+name+capabilitySignature(types)+" ("+describe(error)+")");
+        }
+    }
+    private static void capabilityConstructor(List<String> missing,Map<String,Boolean> features,String group,Class<?> owner,Class<?>... types) {
+        if(owner==null) return;
+        try { owner.getDeclaredConstructor(types).setAccessible(true); }
+        catch(Exception|LinkageError error) {
+            capabilityFailure(missing,features,group,"missing constructor "+owner.getName()+capabilitySignature(types)+" ("+describe(error)+")");
+        }
+    }
+    static List<String> capabilityProblems(Map<String,Boolean> features) {
+        List<String> missing=new ArrayList<>();
+        // Lua-visible bridge entry points.
+        Class<?> bridge=EquipmentPersistence.class;
+        capabilityMethod(missing,features,"bridge",bridge,"read");
+        capabilityMethod(missing,features,"bridge",bridge,"write",KahluaTable.class);
+        capabilityMethod(missing,features,"bridge",bridge,"readEnvelope");
+        capabilityMethod(missing,features,"bridge",bridge,"writeEnvelope",KahluaTable.class);
+        capabilityMethod(missing,features,"bridge",bridge,"resetInvalidStore");
+        capabilityMethod(missing,features,"bridge",bridge,"playerKey",IsoPlayer.class);
+        capabilityMethod(missing,features,"bridge",bridge,"playerKeyAsync",IsoPlayer.class);
+        capabilityMethod(missing,features,"bridge",bridge,"checkpointPlayer",IsoPlayer.class);
+        capabilityMethod(missing,features,"bridge",bridge,"checkpointPlayerAsync",IsoPlayer.class);
+        capabilityMethod(missing,features,"bridge",bridge,"checkpointSquare",IsoGridSquare.class);
+        capabilityMethod(missing,features,"bridge",bridge,"checkpointSquareAsync",IsoGridSquare.class);
+        // Ledger framing and the read/write helpers around the on-disk format.
+        capabilityField(missing,features,"ledger",bridge,"MAGIC");
+        capabilityMethod(missing,features,"ledger",bridge,"readFile",Path.class);
+        capabilityMethod(missing,features,"ledger",bridge,"writeFile",Path.class,KahluaTable.class,Replace.class);
+        // MP player checkpoint: ServerPlayersVehicles.instance.thread and the
+        // NetworkCharacterData snapshot queued on ServerPlayerDB.charactersToSave.
+        Class<?> vehicles=capabilityClass(missing,features,"playerCheckpointMp","zombie.network.ServerPlayersVehicles");
+        Field instance=capabilityField(missing,features,"playerCheckpointMp",vehicles,"instance");
+        Class<?> vehicleType=instance==null?null:instance.getType();
+        capabilityField(missing,features,"playerCheckpointMp",vehicleType,"thread");
+        Class<?> serverDB=capabilityClass(missing,features,"playerCheckpointMp","zombie.savefile.ServerPlayerDB");
+        capabilityMethod(missing,features,"playerCheckpointMp",serverDB,"getInstance");
+        capabilityMethod(missing,features,"playerCheckpointMp",serverDB,"isAvailable");
+        capabilityField(missing,features,"playerCheckpointMp",serverDB,"charactersToSave");
+        Class<?> networkData=capabilityClass(missing,features,"playerCheckpointMp","zombie.savefile.ServerPlayerDB$NetworkCharacterData");
+        capabilityConstructor(missing,features,"playerCheckpointMp",networkData,IsoPlayer.class,int.class,UdpConnection.class);
+        capabilityField(missing,features,"playerCheckpointMp",networkData,"buffer");
+        capabilityField(missing,features,"playerCheckpointMp",networkData,"username");
+        capabilityField(missing,features,"playerCheckpointMp",networkData,"steamid");
+        // SP player checkpoint: PlayerDB queues and PlayerData's player snapshot.
+        Class<?> playerDB=capabilityClass(missing,features,"playerCheckpointSp","zombie.savefile.PlayerDB");
+        capabilityMethod(missing,features,"playerCheckpointSp",playerDB,"getInstance");
+        capabilityMethod(missing,features,"playerCheckpointSp",playerDB,"isAvailable");
+        capabilityField(missing,features,"playerCheckpointSp",playerDB,"toThread");
+        capabilityField(missing,features,"playerCheckpointSp",playerDB,"fromThread");
+        Class<?> playerData=capabilityClass(missing,features,"playerCheckpointSp","zombie.savefile.PlayerDB$PlayerData");
+        capabilityConstructor(missing,features,"playerCheckpointSp",playerData);
+        capabilityMethod(missing,features,"playerCheckpointSp",playerData,"set",IsoPlayer.class);
+        capabilityField(missing,features,"playerCheckpointSp",playerData,"byteBuffer");
+        Class<?> streamer=capabilityClass(missing,features,"playerCheckpointSp","zombie.iso.WorldStreamer");
+        capabilityField(missing,features,"playerCheckpointSp",streamer,"instance");
+        capabilityField(missing,features,"playerCheckpointSp",streamer,"worldStreamer");
+        // MP square/chunk checkpoint: ServerCell.chunkLoader.threadSave queues a
+        // SaveLoadedTask built from a ClientChunkRequest snapshot.
+        Class<?> cell=capabilityClass(missing,features,"squareCheckpointMp","zombie.network.ServerMap$ServerCell");
+        Field loader=capabilityField(missing,features,"squareCheckpointMp",cell,"chunkLoader");
+        Class<?> loaderType=loader==null?null:loader.getType();
+        Field threadSave=capabilityField(missing,features,"squareCheckpointMp",loaderType,"threadSave");
+        Class<?> saveThread=threadSave==null?null:threadSave.getType();
+        capabilityField(missing,features,"squareCheckpointMp",saveThread,"toThread");
+        capabilityField(missing,features,"squareCheckpointMp",saveThread,"fromThread");
+        Class<?> saveTask=capabilityClass(missing,features,"squareCheckpointMp","zombie.network.ServerChunkLoader$SaveLoadedTask");
+        Class<?> request=capabilityClass(missing,features,"squareCheckpointMp","zombie.network.ClientChunkRequest");
+        Class<?> requestChunk=capabilityClass(missing,features,"squareCheckpointMp","zombie.network.ClientChunkRequest$Chunk");
+        capabilityConstructor(missing,features,"squareCheckpointMp",saveTask,loaderType,request,requestChunk);
+        capabilityConstructor(missing,features,"squareCheckpointMp",request);
+        capabilityMethod(missing,features,"squareCheckpointMp",request,"getChunk");
+        capabilityMethod(missing,features,"squareCheckpointMp",request,"getByteBuffer",requestChunk);
+        capabilityField(missing,features,"squareCheckpointMp",requestChunk,"wx");
+        capabilityField(missing,features,"squareCheckpointMp",requestChunk,"wy");
+        capabilityField(missing,features,"squareCheckpointMp",requestChunk,"bb");
+        // SP square/chunk checkpoint: ChunkSaveWorker.toSaveQueue and QueuedSave.
+        Class<?> queued=capabilityClass(missing,features,"squareCheckpointSp","zombie.iso.ChunkSaveWorker$QueuedSave");
+        capabilityConstructor(missing,features,"squareCheckpointSp",queued,IsoChunk.class,boolean.class);
+        capabilityMethod(missing,features,"squareCheckpointSp",queued,"allocBuffer");
+        capabilityField(missing,features,"squareCheckpointSp",queued,"crc");
+        capabilityField(missing,features,"squareCheckpointSp",queued,"byteBuffer");
+        capabilityField(missing,features,"squareCheckpointSp",queued,"chunk");
+        Class<?> chunkSaveWorker=capabilityClass(missing,features,"squareCheckpointSp","zombie.iso.ChunkSaveWorker");
+        capabilityField(missing,features,"squareCheckpointSp",chunkSaveWorker,"instance");
+        capabilityField(missing,features,"squareCheckpointSp",chunkSaveWorker,"toSaveQueue");
+        // Skeleton removal-clock contract shared with the ledger.
+        Class<?> skeleton=SkeletonLifetime.class;
+        capabilityMethod(missing,features,"skeletonLifetime",skeleton,"install",KahluaTable.class);
+        capabilityMethod(missing,features,"skeletonLifetime",skeleton,"installClocks",Map.class);
+        capabilityMethod(missing,features,"skeletonLifetime",skeleton,"readClocks",KahluaTable.class);
+        for(String group:CAPABILITY_GROUPS) features.putIfAbsent(group,true);
+        return missing;
+    }
+    // Explicit, never-throwing capability classification for Lua. The Lua side
+    // calls this once per runtime and fails closed before any read/write/reset.
+    public static KahluaTable capabilities() {
+        KahluaTable result;
+        try { result=LuaManager.platform.newTable(); }
+        catch(Exception|LinkageError error) { return null; }
+        List<String> missing=new ArrayList<>();
+        Map<String,Boolean> features=new java.util.LinkedHashMap<>();
+        int worldVersion=0;
+        try {
+            missing.addAll(capabilityProblems(features));
+            try { worldVersion=IsoWorld.getWorldVersion(); }
+            catch(Exception|LinkageError error) {
+                features.put("worldVersion",false);
+                missing.add("worldVersion: missing IsoWorld.getWorldVersion() ("+describe(error)+")");
+            }
+            KahluaTable featureTable=LuaManager.platform.newTable();
+            for(var entry:features.entrySet()) featureTable.rawset(entry.getKey(),entry.getValue());
+            boolean ok=missing.isEmpty();
+            result.rawset("ok",ok);
+            result.rawset("status",ok?"ok":"incompatible");
+            if(!ok) {
+                result.rawset("reason",missing.get(0));
+                KahluaTable every=LuaManager.platform.newTable();
+                for(int i=0;i<missing.size();i++) every.rawset((double)(i+1),missing.get(i));
+                result.rawset("missing",every);
+            }
+            result.rawset("ledgerFormat","CVPEQ1");
+            result.rawset("worldVersion",(double)worldVersion);
+            result.rawset("features",featureTable);
+        } catch(Exception|LinkageError error) {
+            try {
+                result.rawset("ok",false);
+                result.rawset("status","incompatible");
+                result.rawset("reason","capability probe failed: "+describe(error));
+                result.rawset("ledgerFormat","CVPEQ1");
+                result.rawset("worldVersion",(double)worldVersion);
+                result.rawset("features",LuaManager.platform.newTable());
+            } catch(Exception|LinkageError ignored) {}
+        }
+        return result;
     }
     interface Replace { void move(Path from,Path to) throws Exception; }
     private static void validate(KahluaTable table,IdentityHashMap<KahluaTable,Boolean> path,int depth,int[] budget) {
@@ -210,7 +441,8 @@ public final class EquipmentPersistence {
         long size=Files.size(file);int header=MAGIC.length+8+32;
         if(size<header || size>MAX_LEDGER+header) throw new CorruptLedger("invalid equipment ledger size");
         ByteBuffer buffer=ByteBuffer.wrap(Files.readAllBytes(file));byte[] magic=new byte[MAGIC.length];buffer.get(magic);
-        if(!Arrays.equals(magic,MAGIC) || buffer.getInt()!=IsoWorld.getWorldVersion()) throw new IOException("unsupported equipment ledger");
+        if(!Arrays.equals(magic,MAGIC)) throw new UnsupportedLedger("unsupported equipment ledger format");
+        if(buffer.getInt()!=IsoWorld.getWorldVersion()) throw new UnsupportedLedger("unsupported equipment ledger world version");
         int length=buffer.getInt();byte[] checksum=new byte[32];buffer.get(checksum);
         if(length!=buffer.remaining()) throw new CorruptLedger("truncated equipment ledger");
         byte[] payload=new byte[length];buffer.get(payload);

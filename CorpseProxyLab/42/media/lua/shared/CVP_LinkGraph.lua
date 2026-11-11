@@ -187,6 +187,8 @@ function G.extend(graph,id,revision,equipment,actor,allowOthers)
 end
 -- Topology edits can leave a former through-node with only one section.
 -- It is now a loose, pickable end, not a fixed attachment. Mutate only owned copies.
+-- Every durable deletion/rollback path must go through G.edit() so this rule has
+-- exactly one implementation and the graph revision advances exactly once.
 local function releaseOrphanJoints(graph)
     local idx=assert(G.index(graph));local changed=false
     for _,edges in pairs(idx.byJoint) do if #edges==1 then
@@ -195,6 +197,20 @@ local function releaseOrphanJoints(graph)
         row.revision=row.revision+1;changed=true
     end end
     return changed
+end
+-- Apply one topology transaction to a copy of the graph: let the caller edit
+-- links, release joints that lost a neighbour, advance the graph revision once,
+-- then reject a result that violates the graph schema. The caller persists the
+-- returned graph in the same equipment write as the item accounting change.
+function G.edit(graph,mutate)
+    if type(graph)~='table' or graph.version~=1 or not integer(graph.revision)
+        or type(graph.links)~='table' or type(mutate)~='function' then return nil,'graph schema' end
+    local out=copy(graph)
+    local ok,why=pcall(mutate,out);if not ok then return nil,tostring(why) end
+    releaseOrphanJoints(out)
+    out.revision=graph.revision+1
+    local idx,problem=G.index(out);if not idx then return nil,problem end
+    return out,idx
 end
 -- releaseEnd only changes the selected endpoint. It never returns gear or destroys a tail.
 function G.releaseEnd(graph,id,revision,side,where,actor,allowOthers)
@@ -270,9 +286,7 @@ end
 function G.remove(graph,id,revision,actor,allowOthers)
     local link,why=editable(graph,id,revision,actor,allowOthers,true);if not link then return nil,why end
     for _,side in ipairs(sides) do if link[side].kind=='held' and link[side].holder~=actor then return nil,'held by another player' end end
-    local out=copy(graph);out.links[id]=nil
-    releaseOrphanJoints(out)
-    return accepted(out,id)
+    return G.edit(graph,function(out) out.links[id]=nil end)
 end
 -- After loading a world, old online/session claims are always ground ends.
 function G.dropHolders(graph,actor)

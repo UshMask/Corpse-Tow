@@ -3,7 +3,19 @@ local Jobs={}
 local active
 function Jobs.call(name,...)
     local native=CVPEquipmentPersistence
-    if not active or coroutine.running()~=active.thread then return pcall(native[name],...) end
+    if not active or coroutine.running()~=active.thread then
+        -- Java exposure can log an exception and return nil despite a successful
+        -- pcall. The write envelope classifies the outcome explicitly, so nil is
+        -- never confused with a confirmed durable write.
+        if name=='write' and type(native.writeEnvelope)=='function' then
+            local checked,envelope=pcall(native.writeEnvelope,...)
+            if not checked then return false,tostring(envelope) end
+            if type(envelope)~='table' then return false,'equipment backend returned an invalid write envelope' end
+            if envelope.status=='confirmed' then return true,true end
+            return false,tostring(envelope.reason or 'equipment write not confirmed')
+        end
+        return pcall(native[name],...)
+    end
     local fn=native[name..'Async'];if not fn then return false,'asynchronous persistence unavailable' end
     local ok,ticket=pcall(fn,...);if not ok then return false,tostring(ticket) end
     -- Java exposure can log an exception and return nil despite a successful pcall.
@@ -16,8 +28,10 @@ function Jobs.call(name,...)
         if state==1 then
             if active.cancelled and not active.committed then return false,active.cancelled end
             local done,result=pcall(native.result,ticket)
-            if done and result==nil then return false,'equipment checkpoint not acknowledged' end
-            return done,result
+            if not done then return false,tostring(result) end
+            if result==nil then return false,'equipment checkpoint not acknowledged' end
+            if name=='write' and result~=true then return false,'equipment write not confirmed' end
+            return true,result
         end
         -- Yield OUTSIDE pcall: Kahlua cannot suspend a protected call.
         coroutine.yield()

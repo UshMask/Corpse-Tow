@@ -50,22 +50,82 @@ local function index(r,graphIndex)
     end
     r.graphIndex=graphIndex
 end
+-- The installed JAR declares which native members this build may use. A
+-- mismatch is a hard stop before any ledger data is read, written or reset; the
+-- reason is printed once per runtime so the hot recovery paths cannot spam logs.
+local function bridgeStatus()
+    if runtime.bridge then return runtime.bridge end
+    local bridge
+    local backend=CVPEquipmentPersistence
+    if type(backend.capabilities)~='function' then
+        -- Old JAR without the probe: keep the legacy behavior and record it.
+        bridge={ok=true,legacy=true,status='legacy'}
+    else
+        local called,value=pcall(backend.capabilities)
+        if called and type(value)=='table' then
+            bridge={ok=value.ok==true and value.status=='ok',status=value.status or 'unknown',
+                reason=value.reason,features=value.features,legacy=false}
+        else
+            bridge={ok=false,status='error',legacy=false,
+                reason=called and 'equipment capabilities returned no table' or tostring(value)}
+        end
+    end
+    runtime.bridge=bridge
+    return bridge
+end
+-- Read outcomes are explicit: ok / missing / unsupported / read-error. A backend
+-- failure or a future schema is never an empty journal and never a reason to
+-- replace the file; only a successfully decoded, known-schema store may take the
+-- established corruption/backup path.
+local function readStore()
+    local backend=CVPEquipmentPersistence
+    if type(backend.readEnvelope)=='function' then
+        local called,envelope=pcall(backend.readEnvelope)
+        if not called then return nil,'read-error',tostring(envelope) end
+        if type(envelope)~='table' then return nil,'read-error','equipment backend returned an invalid read envelope' end
+        local status=envelope.status
+        if status=='ok' then
+            if type(envelope.data)~='table' then return nil,'read-error','equipment backend returned no ledger data' end
+            return envelope.data,'ok',envelope.reason
+        elseif status=='missing' then return nil,'missing',envelope.reason
+        elseif status=='unsupported' then return nil,'unsupported',envelope.reason
+        end
+        return nil,'read-error',tostring(envelope.reason or status or 'equipment read outcome unknown')
+    end
+    -- Old JARs expose only read(): nil there means no journal. A thrown error is
+    -- still a read error, never empty data.
+    local called,data=pcall(backend.read)
+    if not called then return nil,'read-error',tostring(data) end
+    if data==nil then return nil,'missing' end
+    if type(data)~='table' then return nil,'read-error','equipment backend returned no ledger data' end
+    return data,'ok'
+end
 local function prepare()
     if not authority() then return nil,'equipment store is authoritative only' end
     if not CVPEquipmentPersistence or not CVPItemNative or not ItemContainer then return nil,'equipment backend unavailable' end
+    local bridge=bridgeStatus()
+    if not bridge.ok then
+        local message='equipment bridge incompatible: '..tostring(bridge.reason or 'unknown capability failure')
+        if not runtime.bridgeReported then
+            runtime.bridgeReported=true
+            if print then pcall(print,'[CVP equipment] '..message) end
+        end
+        return nil,message
+    end
     if runtime.data then
         if (runtime.data.version~=2 and runtime.data.version~=3) or type(runtime.data.rows)~='table' then return nil,'invalid equipment store' end
         return runtime
     end
-    local ok,data=pcall(CVPEquipmentPersistence.read)
-    if not ok then return nil,tostring(data) end
-    if data==nil then data={version=2,rows={}} end
+    local data,outcome,reason=readStore()
+    if outcome=='read-error' then return nil,'equipment store read failed: '..tostring(reason) end
+    if outcome=='unsupported' then return nil,'unsupported equipment store version: '..tostring(reason) end
+    if outcome=='missing' then data={version=2,rows={}} end
     -- Only a successfully read, known schema may be reset here. IO/backend
     -- failures and future versions remain errors, never a reason to erase data.
-    if type(data)=='table' and data.version~=2 and data.version~=3 then return nil,'unsupported equipment store version' end
-    local checked,shadow,reason,graphIndex=pcall(validateStore,data)
+    if data.version~=2 and data.version~=3 then return nil,'unsupported equipment store version' end
+    local checked,shadow,why,graphIndex=pcall(validateStore,data)
     if not checked or not shadow then
-        if not CVPEquipmentPersistence.resetInvalidStore then return nil,tostring(checked and reason or shadow) end
+        if not CVPEquipmentPersistence.resetInvalidStore then return nil,tostring(checked and why or shadow) end
         local reset,fresh=pcall(CVPEquipmentPersistence.resetInvalidStore)
         if not reset or type(fresh)~='table' then return nil,'equipment recovery failed: '..tostring(fresh) end
         data=fresh
@@ -84,7 +144,10 @@ local function write(r,data)
     end
     local shadow,reason,idx=validateStore(data,graphIndex);if not shadow then return false,reason end
     local ok,result=SaveJobs.call('write',data)
-    if not ok or result==false then return false,tostring(result) end
+    if not ok then return false,tostring(result) end
+    -- Java exposure can return nil after logging an exception: only an explicit
+    -- true confirms a durable write.
+    if result~=true then return false,type(result)=='string' and result or 'equipment write not confirmed' end
     r.data=data;r.shadow=shadow;index(r,idx);return true
 end
 local function replace(r,key,row)
@@ -164,6 +227,9 @@ local function move(item,source,destination,transfer)
     if not owned(item,destination) or source:getItems():contains(item) then return false,'equipment transfer not confirmed' end
     return true
 end
+local function graphEdit(graph,mutate)
+    return require('CVP_LinkGraph').edit(graph,mutate)
+end
 local function finish(r,key,release)
     local data=copy(r.data);local row=data.rows[key]
     -- A completed return/canceled take removes only this connection, never its
@@ -171,14 +237,27 @@ local function finish(r,key,release)
     local linkID=r.graphIndex and r.graphIndex.equipment[key]
     local link=linkID and data.graph.links[linkID]
     local keep=false
+    -- Every graph mutation below goes through graphEdit(): it releases a former
+    -- through-joint whose neighbour disappeared, advances the revision exactly
+    -- once and refuses an invalid topology before the ledger is written.
+    local function edit(mutate)
+        if not data.graph then return false,'equipment graph missing' end
+        local graph,why=graphEdit(data.graph,mutate);if not graph then return false,why end
+        data.graph=graph;return true
+    end
     if link and row.tailOriginal and not release then
-        data.graph.links[linkID]=nil
-        data.graph.links[row.tailOriginal.id]=copy(row.tailOriginal)
-        data.graph.revision=data.graph.revision+1
+        local restored=copy(row.tailOriginal)
+        local ok,why=edit(function(graph)
+            graph.links[linkID]=nil;graph.links[restored.id]=restored
+        end)
+        if not ok then return false,why end
     elseif link and link.extension and not release and link.extension==key then
         -- A rejected second take restores the original section exactly.
-        link.extension=nil;link.length=assert(row.extensionLength);link.revision=link.revision+1
-        data.graph.revision=data.graph.revision+1
+        local ok,why=edit(function(graph)
+            local current=graph.links[linkID]
+            current.extension=nil;current.length=assert(row.extensionLength);current.revision=current.revision+1
+        end)
+        if not ok then return false,why end
     elseif link and link.extension and release then
         -- Retain both claims until both original items are acknowledged. A
         -- restart after the first return must not forget the second rope.
@@ -186,7 +265,8 @@ local function finish(r,key,release)
         keep=true;row.state='released';row.owner=nil;row.receipt=nil
         local first,second=data.rows[link.equipment],data.rows[link.extension]
         if first.state=='released' and second.state=='released' then
-            data.graph.links[linkID]=nil;data.graph.revision=data.graph.revision+1
+            local ok,why=edit(function(graph) graph.links[linkID]=nil end)
+            if not ok then return false,why end
             for _,k in ipairs({link.equipment,link.extension}) do
                 local entry=data.rows[k];if not entry.bodyKey and not entry.legacy then data.rows[k]=nil end
             end
@@ -194,8 +274,9 @@ local function finish(r,key,release)
     elseif link then
         -- A ground return hands back the one original behind every reservation.
         local spool=r.graphIndex.spools[key]
-        for _,id in ipairs(spool and spool.ids or {linkID}) do data.graph.links[id]=nil end
-        data.graph.revision=data.graph.revision+1
+        local ids={unpack(spool and spool.ids or {linkID})}
+        local ok,why=edit(function(graph) for _,id in ipairs(ids) do graph.links[id]=nil end end)
+        if not ok then return false,why end
     end
     if release then Legacy.markTail(data,row.metadata) end
     Legacy.forgetLegacy(data,row.metadata)
@@ -483,16 +564,25 @@ function E.releaseLink(id,revision,destination,transfer)
     if spool and #spool.ids>1 then
         local ready,why=E.linkReady(link);if not ready then return false,why end
         -- Delete only this reservation; the single original stays in escrow.
-        local data=copy(r.data);data.graph.links[id]=nil;data.graph.revision=data.graph.revision+1
+        -- graphEdit also normalizes a joint that this deletion left with one edge.
+        local data=copy(r.data)
+        local graph,problem=graphEdit(data.graph,function(next) next.links[id]=nil end)
+        if not graph then return false,problem end
+        data.graph=graph
         return write(r,data)
     end
     if not link.extension then return E.release(link.equipment,destination,transfer,{link={id=id,revision=revision}}) end
     if not link.returning then
         local ready,why=E.linkReady(link);if not ready then return false,why end
-        local data=copy(r.data);local row=data.graph.links[id]
-        row.returning=true;row.revision=row.revision+1;data.graph.revision=data.graph.revision+1
-        for _,side in ipairs({'a','b'}) do if row[side].kind=='held' then row[side].kind='ground';row[side].holder=nil end end
-        local ok,problem=write(r,data);if not ok then return false,problem end
+        local data=copy(r.data)
+        local graph,problem=graphEdit(data.graph,function(next)
+            local row=next.links[id]
+            row.returning=true;row.revision=row.revision+1
+            for _,side in ipairs({'a','b'}) do if row[side].kind=='held' then row[side].kind='ground';row[side].holder=nil end end
+        end)
+        if not graph then return false,problem end
+        data.graph=graph
+        local ok,writeError=write(r,data);if not ok then return false,writeError end
     end
     for _,key in ipairs({link.equipment,link.extension}) do
         if not r.data.graph.links[id] then return true end

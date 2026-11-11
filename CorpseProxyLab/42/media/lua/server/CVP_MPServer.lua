@@ -6,8 +6,16 @@ local Runtime=require 'CVP_LinkRuntime'
 local Appearance=require 'CVP_Appearance'
 local LoadWindow=require 'CVP_LoadWindow'
 local S={schema=4,authority=Runtime.new(),peers=setmetatable({},{__mode='k'}),sequence=0,
-    epoch=getRandomUUID(),known={},terminal={},loadWindow=LoadWindow.new(),loadOwners=setmetatable({},{__mode='k'})}
+    epoch=getRandomUUID(),known={},terminal={},loadWindow=LoadWindow.new(),loadOwners=setmetatable({},{__mode='k'}),
+    -- Fixed-size counters only; per-peer counterparts live on each peer.
+    stats={captures=0,publishes=0,results=0,rejected=0,rateLimited=0,duplicates=0}}
 CVPMPServer=S
+function S.resetStats()
+    for key in pairs(S.stats) do S.stats[key]=0 end
+    for _,peer in pairs(S.peers) do if peer.stats then
+        for key in pairs(peer.stats) do peer.stats[key]=0 end
+    end end
+end
 local function report(err)
     if err and err~=S.error then print('[CVP MP] '..tostring(err)) end;S.error=err
 end
@@ -59,6 +67,7 @@ local function captureGraph(live,index,frame)
     previousGraph=graph;return graph
 end
 function S.capture()
+    S.stats.captures=S.stats.captures+1
     local runtime=S.authority;local live=runtime.service.graph or G.empty()
     local index=runtime.service.index or assert(G.index(live));local host=runtime.host
     local frame=runtime.simulationFrame
@@ -192,7 +201,7 @@ function S.publish(p,snapshot,onlyChanged)
     local motion=onlyChanged and motionCompatible(pages,peer.visiblePages,peer,snapshot.graph.revision)
     if onlyChanged and peer.visibleReady==ready and now<(peer.heartbeat or 0) and samePages(pages,peer.visiblePages) then return end
     peer.visiblePages=pages;peer.visibleReady=ready;peer.heartbeat=now+1000
-    local offered={}
+    local offered={};local sent=0
     for _,source in ipairs(pages) do
         -- Keep the comparison snapshot intact when adding wire metadata or omitting appearance.
         local page={};for key,value in pairs(source) do page[key]=value end;page.bodies={}
@@ -220,6 +229,13 @@ function S.publish(p,snapshot,onlyChanged)
         page.sampledAt=snapshot.sampledAt;page.frameSchema=snapshot.frameSchema;page.intervalSeconds=snapshot.intervalSeconds
         page.ready=S.authority.started==true and not S.error
         sendServerCommand(p,W.module,motion and 'motion' or 'state',page)
+        sent=sent+1
+    end
+    if sent>0 then
+        S.stats.publishes=S.stats.publishes+sent
+        if peer.stats then peer.stats.publishes=peer.stats.publishes+sent end
+        -- The sequence a duplicate replay promises is backed by this publication.
+        peer.publishedSequence=S.sequence
     end
     if not motion then peer.fullRevision=snapshot.graph.revision end
     peer.appearanceOffered=offered
@@ -227,7 +243,29 @@ function S.publish(p,snapshot,onlyChanged)
 end
 local function sendResult(p,peer,request,result)
     result.protocol=W.version;result.epoch=S.epoch;result.session=peer.session;result.request=request
+    S.stats.results=S.stats.results+1
+    if peer.stats then peer.stats.results=peer.stats.results+1 end
     sendServerCommand(p,W.module,'result',result)
+end
+-- Transport rejections are decided before any graph read, snapshot or job. They
+-- quote the last state sequence actually published to this peer, so a client can
+-- release the pending reply without the server building a new snapshot.
+local function reject(p,peer,request,reason)
+    if reason=='request rate exceeded' then
+        S.stats.rateLimited=S.stats.rateLimited+1
+        if peer.stats then peer.stats.rateLimited=peer.stats.rateLimited+1 end
+    else
+        S.stats.rejected=S.stats.rejected+1
+        if peer.stats then peer.stats.rejected=peer.stats.rejected+1 end
+    end
+    sendResult(p,peer,request,{ok=false,reason=reason,sequence=peer.publishedSequence or -1})
+end
+-- Results are kept only for the recent request window (64 entries) so a lost reply
+-- can be replayed without re-running the operation or growing a table forever.
+local function remember(peer,request,answer)
+    peer.results[request]=G.copy(answer)
+    local floor=peer.lastRequest-63
+    for id in pairs(peer.results) do if id<floor then peer.results[id]=nil end end
 end
 function S.command(module,name,p,args)
     if module~=W.module or not p or type(args)~='table' then return end
@@ -237,7 +275,8 @@ function S.command(module,name,p,args)
     end
     if not W.session(args.session) then return end
     local now=getTimestampMs();local peer=S.peers[p]
-    if not peer then peer={retired={},tokens=8,time=now,results={},lastRequest=0};S.peers[p]=peer end
+    if not peer then peer={retired={},tokens=8,time=now,results={},lastRequest=0,publishedSequence=-1,
+        stats={publishes=0,results=0,rejected=0,rateLimited=0,duplicates=0}};S.peers[p]=peer end
     if name=='sync' then
         if S.authority.saveJob then return end
         if peer.retired[args.session] then return end
@@ -298,37 +337,60 @@ function S.command(module,name,p,args)
         return
     end
     if p:isDead() or not W.integer(args.request) or args.request<1 then return end
-    if peer.results[args.request] then
-        S.sequence=S.sequence+1;S.publish(p)
-        local result=G.copy(peer.results[args.request]);result.sequence=S.sequence
-        sendResult(p,peer,args.request,result);return
+    -- A retried request that already completed replays its stored answer. This path
+    -- never executes, captures or publishes; a planned tick publication (the peer
+    -- heartbeat is scheduled for the next interval) supplies any state the client
+    -- may still be missing, so drain() cannot wait on an unpublished sequence.
+    local stored=peer.results[args.request]
+    if stored then
+        S.stats.duplicates=S.stats.duplicates+1
+        if peer.stats then peer.stats.duplicates=peer.stats.duplicates+1 end
+        if stored.ok==true then
+            -- The retry proves the client missed the reply, so it may also have
+            -- missed the state. Ask the planned tick publication for a full state
+            -- (the tick snapshot is shared, so no extra capture is built here).
+            peer.heartbeat=0;peer.visiblePages=nil;peer.visibleReady=nil
+        end
+        sendResult(p,peer,args.request,G.copy(stored));return
     end
     if peer.pendingRequests and peer.pendingRequests[args.request] then return end
-    if args.request<=peer.lastRequest then
-        sendResult(p,peer,args.request,{ok=false,reason='stale request',sequence=S.sequence});return
-    end
-    peer.tokens=math.min(8,peer.tokens+math.max(0,now-peer.time)*.02);peer.time=now;peer.lastRequest=args.request
+    -- One token budget gates everything below that can touch the graph, jobs or a
+    -- snapshot. Duplicate replies above stay cheap; floods fall out here.
+    peer.tokens=math.min(8,peer.tokens+math.max(0,now-peer.time)*.02);peer.time=now
+    if args.request<=peer.lastRequest then reject(p,peer,args.request,'stale request');return end
+    peer.lastRequest=args.request
+    if peer.tokens<1 then reject(p,peer,args.request,'request rate exceeded');return end
+    if not W.request(name,args.args) then reject(p,peer,args.request,'invalid command');return end
+    if S.error then reject(p,peer,args.request,'authority unavailable');return end
+    peer.tokens=peer.tokens-1
+    peer.pendingRequests=peer.pendingRequests or {};peer.pendingRequests[args.request]=true
     local session=peer.session
     local function reply(ok,result,reason)
         if peer.session~=session then return end
         if peer.pendingRequests then peer.pendingRequests[args.request]=nil end
         if peer.requestJobs then peer.requestJobs[args.request]=nil end
-        S.sequence=S.sequence+1
-        local answer={ok=ok==true,result=result,reason=reason,sequence=S.sequence}
-        peer.results[args.request]=G.copy(answer)
-        for id in pairs(peer.results) do if id<peer.lastRequest-63 then peer.results[id]=nil end end
-        S.publish(p)
+        local answer={ok=ok==true,result=result,reason=reason}
+        if answer.ok then
+            -- Exactly one publication per successful graph change, at the sequence
+            -- the result promises; the client stores that state and can drain.
+            S.sequence=S.sequence+1
+            answer.sequence=S.sequence
+            remember(peer,args.request,answer)
+            S.publish(p)
+        else
+            -- A rejected authority operation publishes no new state. The last
+            -- published sequence satisfies the client, and the tick carries any
+            -- durable change the failed attempt may have made.
+            answer.sequence=peer.publishedSequence or -1
+            remember(peer,args.request,answer)
+            S.stats.rejected=S.stats.rejected+1
+            if peer.stats then peer.stats.rejected=peer.stats.rejected+1 end
+        end
         sendResult(p,peer,args.request,answer)
     end
-    if peer.tokens<1 then reply(false,nil,'request rate exceeded')
-    elseif not W.request(name,args.args) then reply(false,nil,'invalid command')
-    elseif S.error then reply(false,nil,'authority unavailable')
-    else
-        peer.tokens=peer.tokens-1;peer.pendingRequests=peer.pendingRequests or {};peer.pendingRequests[args.request]=true
-        local job=S.authority:submit(p,name,args.args,reply)
-        if job and not job.done then
-            peer.requestJobs=peer.requestJobs or {};peer.requestJobs[args.request]=job
-        end
+    local job=S.authority:submit(p,name,args.args,reply)
+    if job and not job.done then
+        peer.requestJobs=peer.requestJobs or {};peer.requestJobs[args.request]=job
     end
 end
 local lastTick,nextSend=getTimestampMs(),0

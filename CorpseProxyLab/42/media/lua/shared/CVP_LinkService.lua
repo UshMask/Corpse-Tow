@@ -224,6 +224,11 @@ function Service:command(p,args)
         end
         if out and self.host.ensure then local ok,problem=self.host.ensure(target);if not ok then return false,problem end end
     elseif args.op=='remove' then
+        -- Validate the complete deletion rule (owner, held-by-another, revision)
+        -- on a copy, then let the equipment ledger perform the only durable
+        -- deletion. E.releaseLink normalizes former through-joints in the same
+        -- write as the item return, so the graph and item accounting cannot
+        -- disagree after a crash or reload.
         out,why=G.remove(graph,args.id,args.revision,actor.key,actor.allowOthers)
         if not out then return false,why end
         local saved,failure=self:flush();if not saved then return false,failure end

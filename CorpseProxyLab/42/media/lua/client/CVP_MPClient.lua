@@ -142,7 +142,7 @@ function C.apply(snapshot,args)
         for _,entry in pairs(pending) do entry.callback(false,nil,'IGUI_CVP_QueueStopped') end
         for _,r in pairs(C.rows) do untrack(r) end
         C.rows={};C.parts={};C.loadAssembly=nil;C.assembly=nil;C.finals={};C.appearances={};C.appearanceApplied=setmetatable({},{__mode='k'});C.appearanceRetry=setmetatable({},{__mode='k'});C.presentation:clear()
-        C.epoch=args.epoch;C.endpointRows=nil;C.motionClock=nil;C.loadSequence=-1;C.loadClock={};C.loadOwners={};C.loadReceived=nil
+        C.epoch=args.epoch;C.endpointRows=nil;C.motionClock=nil;C.loadSequence=-1;C.loadClock={};C.loadOwners={};C.loadReceived=nil;C.stateWait=nil
     end
     local previous=C.rows;local rows={};local now=getTimestampMs()
     local orderChanged=discover or not C.orderedRows
@@ -271,7 +271,17 @@ function C.receive(name,args)
     elseif name=='result' then
         if not W.integer(args.request) or not W.integer(args.sequence) or type(args.ok)~='boolean' then return end
         local pending=C.pending[args.request]
-        if pending and pending.epoch==args.epoch and not pending.result then pending.result=args;drain() end
+        if pending and pending.epoch==args.epoch and not pending.result then
+            pending.result=args
+            -- A result is only consumable with a state at or above its sequence.
+            -- If that state was lost, drain() would wait for the periodic sync
+            -- timer; ask for a full state after one bounded wait instead.
+            if args.sequence>C.sequence then
+                local wait=getTimestampMs()+1000
+                if not C.stateWait or wait<C.stateWait then C.stateWait=wait end
+            end
+            drain()
+        end
     elseif name=='body' then
         local row=W.key(args.key) and C.rows[args.key]
         if not row or row.descriptor.token~=args.token or row.descriptor.id~=args.id or not W.session(args.transfer)
@@ -302,7 +312,15 @@ local function serviceNetwork(now)
     if C.assembly and now-C.assembly.time>5000 then C.assembly=nil end
     if C.loadAssembly and now-C.loadAssembly.time>1000 then C.loadAssembly=nil end
     for key,part in pairs(C.parts) do if now-part.time>5000 then C.parts[key]=nil end end
-    if (not C.epoch or now-C.lastState>=3000) and now>=C.nextSync then sync() end
+    -- A result whose state was lost is repaired with one explicit full sync rather
+    -- than waiting for the idle/lost-state timer. Normal recovery is unchanged.
+    local waiting=false
+    for _,pending in pairs(C.pending) do
+        if pending.result and pending.result.sequence>C.sequence then waiting=true;break end
+    end
+    if not waiting then C.stateWait=nil end
+    if waiting and C.stateWait and now>=C.stateWait then C.stateWait=nil;sync()
+    elseif (not C.epoch or now-C.lastState>=3000) and now>=C.nextSync then sync() end
 end
 local function applyLoads(now,dt)
     if not C.loadReceived or not C.ready then return end
