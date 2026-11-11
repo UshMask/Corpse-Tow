@@ -40,7 +40,13 @@ public final class TowingSolver {
         final boolean singleChain;
         // Substep results stay native; publish the final status with candidate poses.
         int gap;
-        double gapX,gapY,gapZ,residual;int iterations;
+        double gapX,gapY,gapZ,residual,threeH;int iterations;
+        // Stage 2 scratch for the measured tether shared by the residual pair.
+        // Rewritten before every use; no allocation and no lifetime past its call.
+        double mD,mNx,mNy,mG,mGp,mUsed,mParentUsed;
+        // Opt-in aggregated workload counters (group.solverCounters). Bounded
+        // scalars only; increments are skipped entirely when disabled.
+        boolean counters;int cSubsteps,cIterations,cConstraintCalls,cInnerSearch,cFallbacks;
         String obstruction;
         void contact(int i,int j){
             if(contactCount==contacts.size())contacts.add(new int[]{i,j});
@@ -65,11 +71,24 @@ public final class TowingSolver {
         double physicalVX,physicalVY,physicalW,fallbackDX,fallbackDY;boolean correctionStep;
         double tensionLambda,hardLambda,reaction,angularVelocity,px,py,pa,weight,inertia,limit,allowance;
         double spreadSpeed,spreadPush,spreadNX,spreadNY,spreadRemaining,spreadOffset,spreadScale;
+        // Candidate-pose trig for cx/cy and child source reads. Kept apart from the
+        // original-angle trig: a candidate turn must never invalidate the fixed
+        // source geometry, and the fixed source geometry must not hide a turn.
+        double paTrig=Double.NaN,cosPa,sinPa;
+        void updatePaTrig(){if(paTrig!=pa){cosPa=Math.cos(pa);sinPa=Math.sin(pa);paTrig=pa;}}
         // Corrections change angles in-place; refresh lazily for either endpoint.
         double trigAngle=Double.NaN,cosAngle,sinAngle;
-        void updateTrig(){updateTrig(pa);}
         void updateTrig(double angle){
             if(trigAngle!=angle){cosAngle=Math.cos(angle);sinAngle=Math.sin(angle);trigAngle=angle;}
+        }
+        // Stage 2 cache: values fixed for one substep's iterative solve. initSubstep
+        // rebuilds them from the anchored source state; they never cross substeps.
+        double oldFootX,oldFootY,oldDistance,substepWeight,parentInertia,alphaSoft,gammaSoft;
+        double anchorVX,anchorVY,anchorSpeed;
+        void initSubstep(){
+            updateTrig(angle);
+            oldFootX=x+cosAngle*fx-sinAngle*fy;oldFootY=y+sinAngle*fx+cosAngle*fy;
+            oldDistance=Math.sqrt(sq(oldFootX-ax)+sq(oldFootY-ay));
         }
         final SolverEnvironment.Tile[] sweepFrom,sweepTo;
         boolean constraint,taut,blocked,failed,connected,elastic;String ropeBlocked;
@@ -265,60 +284,82 @@ public final class TowingSolver {
         for(int i=0;i<a.length;i++)if(a[i].parent<0&&a[i].taut&&!a[i].failed)a[root(a,i)].driven=true;
         for(int i=0;i<a.length;i++)a[i].connected=!a[i].failed&&a[root(a,i)].driven;
     }
-    static double cx(Body b){b.updateTrig();return b.px+b.cosAngle*b.fx-b.sinAngle*b.fy;}
-    static double cy(Body b){b.updateTrig();return b.py+b.sinAngle*b.fx+b.cosAngle*b.fy;}
+    static double cx(Body b){b.updatePaTrig();return b.px+b.cosPa*b.fx-b.sinPa*b.fy;}
+    static double cy(Body b){b.updatePaTrig();return b.py+b.sinPa*b.fx+b.cosPa*b.fy;}
     static double sx(Body b,int i,Body[] a,double rx){
         if(i==0)return rx;if(b.parent<0)return b.sx;Body p=a[b.parent];
-        p.updateTrig();return p.px+p.cosAngle*b.pfx-p.sinAngle*b.pfy;
+        p.updatePaTrig();return p.px+p.cosPa*b.pfx-p.sinPa*b.pfy;
     }
     static double sy(Body b,int i,Body[] a,double ry){
         if(i==0)return ry;if(b.parent<0)return b.sy;Body p=a[b.parent];
-        p.updateTrig();return p.py+p.sinAngle*b.pfx+p.cosAngle*b.pfy;
+        p.updatePaTrig();return p.py+p.sinPa*b.pfx+p.cosPa*b.pfy;
     }
-    static double boundedTurn(double used,double requested,double h){
-        return Math.max(-3*h,Math.min(3*h,used+requested))-used;
+    static double boundedTurn(double used,double requested,double threeH){
+        return Math.max(-threeH,Math.min(threeH,used+requested))-used;
     }
-    // Positive lambda pulls endpoints together. Its accumulated value cannot push.
-    static double tether(State s,int i,double rx,double ry,double h,boolean hard,boolean apply){
-        Body b=s.bodies[i],p=b.parent<0?null:s.bodies[b.parent];
-        if(hard&&b.allowance<=0)return 0;
+    // Measures one tether's source/candidate geometry into solver scratch. The
+    // residual sweep evaluates soft and hard from this single measurement because
+    // neither read moves a pose; apply calls always re-measure because the
+    // previous apply may have turned this body or its parent.
+    static boolean measure(State s,Body b,Body p,int i,double rx,double ry){
         double x=sx(b,i,s.bodies,rx),y=sy(b,i,s.bodies,ry),fx=cx(b),fy=cy(b);
-        double dx=fx-x,dy=fy-y,d=Math.sqrt(dx*dx+dy*dy);if(d<1e-9)return 0;
-        double nx=dx/d,ny=dy/d,g=(fx-b.px)*ny-(fy-b.py)*nx,gp=p==null?0:(x-p.px)*ny-(y-p.py)*nx;
-        double wp=p==null?0:p.weight,ip=p==null?0:p.inertia,w=b.weight+wp;
-        double alpha=!hard&&b.allowance>0?w/(180*h*h):0,gamma=alpha>0?24/(180*h):0;
+        double dx=fx-x,dy=fy-y,d=Math.sqrt(dx*dx+dy*dy);
+        if(d<1e-9)return false;
+        s.mD=d;s.mNx=dx/d;s.mNy=dy/d;
+        s.mG=(fx-b.px)*s.mNy-(fy-b.py)*s.mNx;
+        s.mGp=p==null?0:(x-p.px)*s.mNy-(y-p.py)*s.mNx;
+        s.mUsed=wrap(b.pa-b.angle);s.mParentUsed=p==null?0:wrap(p.pa-p.angle);
+        return true;
+    }
+    // Evaluates one tether from the measurement above. Positive lambda pulls
+    // endpoints together. Its accumulated value cannot push.
+    static double tetherSolve(State s,Body b,Body p,double h,boolean hard,boolean apply){
+        double d=s.mD,nx=s.mNx,ny=s.mNy,g=s.mG,gp=s.mGp,used=s.mUsed,parentUsed=s.mParentUsed;
+        double w=b.substepWeight,ip=b.parentInertia,threeH=s.threeH;
+        double alpha=hard?0:b.alphaSoft,gamma=hard?0:b.gammaSoft;
         double lambda=hard?b.hardLambda:b.tensionLambda;
         // Damping measures change of tether length. Projecting endpoint travel
         // on the NEW normal falsely damps pure rotation at constant length.
         // d-oldDistance also has the normal derivative assumed by (1+gamma).
-        double displacement=d-Math.sqrt(sq(b.footX(b.x)-b.ax)+sq(b.footY(b.y)-b.ay));
+        double displacement=d-b.oldDistance;
         double residual=d-(hard?b.limit:b.takeup)+gamma*displacement-alpha*lambda;
-        double used=wrap(b.pa-b.angle),parentUsed=p==null?0:wrap(p.pa-p.angle);
         double amount=Math.max(-lambda,residual/((1+gamma)*(w+b.inertia*g*g+ip*gp*gp)+alpha));
         // Most steps do not hit the turn bounds: the linear solve is exact there.
-        if(Math.abs(used-amount*b.inertia*g)>3*h||Math.abs(parentUsed+amount*ip*gp)>3*h){
+        if(Math.abs(used-amount*b.inertia*g)>threeH||Math.abs(parentUsed+amount*ip*gp)>threeH){
+            if(s.counters)s.cInnerSearch++;
             double low=Math.max(-lambda,Math.min(0,residual/((1+gamma)*w+alpha)));
             double high=Math.max(0,residual/((1+gamma)*w+alpha));
             for(int k=0;k<28;k++){
                 double q=(low+high)*.5;
-                double closure=w*q-g*boundedTurn(used,-q*b.inertia*g,h)+gp*boundedTurn(parentUsed,q*ip*gp,h);
+                double closure=w*q-g*boundedTurn(used,-q*b.inertia*g,threeH)+gp*boundedTurn(parentUsed,q*ip*gp,threeH);
                 if((1+gamma)*closure+alpha*q<residual)low=q;else high=q;
             }
             amount=(low+high)*.5;
         }
-        double turn=boundedTurn(used,-amount*b.inertia*g,h),pt=boundedTurn(parentUsed,amount*ip*gp,h);
+        double turn=boundedTurn(used,-amount*b.inertia*g,threeH),pt=boundedTurn(parentUsed,amount*ip*gp,threeH);
         double error=Math.abs(w*amount-g*turn+gp*pt);
         if(!apply)return error;
         if(hard)b.hardLambda=Math.max(0,lambda+amount);else b.tensionLambda=Math.max(0,lambda+amount);
         b.px-=nx*amount*b.weight;b.py-=ny*amount*b.weight;b.pa+=turn;
-        if(p!=null){p.px+=nx*amount*wp;p.py+=ny*amount*wp;p.pa+=pt;}
-        else {double vx=(x-b.ax)/h,vy=(y-b.ay)/h,speed=Math.sqrt(vx*vx+vy*vy);
-            if(speed>.02)b.reaction+=amount/(h*h)*Math.max(0,-(nx*vx+ny*vy)/speed);}
+        if(p!=null){p.px+=nx*amount*p.weight;p.py+=ny*amount*p.weight;p.pa+=pt;}
+        else {
+            // Anchored source and ax/ay are fixed for this substep: reuse them.
+            double vx=b.anchorVX,vy=b.anchorVY,speed=b.anchorSpeed;
+            if(speed>.02)b.reaction+=amount/(h*h)*Math.max(0,-(nx*vx+ny*vy)/speed);
+        }
         return error;
+    }
+    static double tether(State s,int i,double rx,double ry,double h,boolean hard){
+        Body b=s.bodies[i],p=b.parent<0?null:s.bodies[b.parent];
+        if(hard&&b.allowance<=0)return 0;
+        if(!measure(s,b,p,i,rx,ry))return 0;
+        if(s.counters)s.cConstraintCalls++;
+        return tetherSolve(s,b,p,h,hard,true);
     }
     /** Coupled reactions prevent internal contacts from driving kinematic parents. */
     static void coupled(State s,SolverEnvironment environment,double rx,double ry,double h){
         Body[] a=s.bodies;double friction=Math.exp(-4*h);
+        s.threeH=3*h;
         s.gap=0;s.obstruction=null;s.fallbackStep=false;s.takeupStep=false;
         for(Body b:a){b.px=b.x;b.py=b.y;b.pa=b.angle;b.weight=1/Math.max(1,b.mass);
             b.inertia=2*b.weight/(b.radius*b.radius);b.tensionLambda=0;b.hardLambda=0;b.reaction=0;b.taut=false;b.blocked=false;b.ropeBlocked=null;}
@@ -334,6 +375,16 @@ public final class TowingSolver {
             if(!b.constraint){b.takeup=Math.max(reach,Math.sqrt(sq(x-cx(b))+sq(y-cy(b))));b.constraint=true;}
             boolean takingUp=b.takeup>reach;s.takeupStep|=takingUp;s.recoveryStep|=takingUp;
             b.takeup=Math.max(reach,(Double.isNaN(b.takeup)?reach:b.takeup)-2*h);b.limit=b.takeup+b.allowance;
+            // Stage 2: anchors/poses are now final for this substep's iterative
+            // solve. Rebuild the fixed geometry here; never carry it across steps.
+            b.initSubstep();
+            Body parent=b.parent<0?null:a[b.parent];
+            b.substepWeight=b.weight+(parent==null?0:parent.weight);
+            b.parentInertia=parent==null?0:parent.inertia;
+            b.alphaSoft=b.allowance>0?b.substepWeight/(180*h*h):0;
+            b.gammaSoft=b.alphaSoft>0?24/(180*h):0;
+            if(b.parent<0){b.anchorVX=(x-b.ax)/h;b.anchorVY=(y-b.ay)/h;
+                b.anchorSpeed=Math.sqrt(b.anchorVX*b.anchorVX+b.anchorVY*b.anchorVY);}
         }
         for(Body b:a){double vx=b.vx+b.pushX*h,vy=b.vy+b.pushY*h,slide=sliding(vx,vy,h);
             b.physicalVX=vx*slide;b.physicalVY=vy*slide;
@@ -345,14 +396,29 @@ public final class TowingSolver {
             // Alternate sweep direction: a tail correction must propagate back
             // toward the root, not always wait for the next forward sweep.
             for(int j=0;j<a.length;j++){int i=iteration%2==0?j:a.length-1-j;
-                tether(s,i,rx,ry,h,false,true);tether(s,i,rx,ry,h,true,true);}
+                tether(s,i,rx,ry,h,false);tether(s,i,rx,ry,h,true);}
             double error=0;
             // Inspect the final configuration, after every neighbour has moved.
-            for(int i=0;i<a.length;i++)error=Math.max(error,Math.max(tether(s,i,rx,ry,h,false,false),tether(s,i,rx,ry,h,true,false)));
+            // Both reads see the same poses, so they share one measurement; the
+            // soft and hard formulas stay separate and the max order is unchanged.
+            for(int i=0;i<a.length;i++){
+                Body b=a[i],p=b.parent<0?null:a[b.parent];
+                if(!measure(s,b,p,i,rx,ry))continue;
+                if(s.counters)s.cConstraintCalls++;
+                double soft=tetherSolve(s,b,p,h,false,false);
+                double hardError=0;
+                if(b.allowance>0){
+                    if(s.counters)s.cConstraintCalls++;
+                    hardError=tetherSolve(s,b,p,h,true,false);
+                }
+                error=Math.max(error,Math.max(soft,hardError));
+            }
             s.residual=error;s.iterations=Math.max(s.iterations,iteration+1);
+            if(s.counters)s.cIterations++;
             if(error<tolerance){converged=true;break;}
         }
         if(!converged){
+            if(s.counters)s.cFallbacks++;
             // Bounded degraded solve. Restore the free prediction, then project
             // outward in parent order; children cannot invalidate an earlier rope.
             s.fallback=true;s.fallbackStep=true;s.recoveryStep=true;
@@ -400,8 +466,13 @@ public final class TowingSolver {
     private static double solveInternal(State s,SolverEnvironment environment,KahluaTable group,int steps,double h,
             double startX,double startY,double rootX,double rootY) {
         s.gap=0;s.obstruction=null;s.unconverged=false;s.fallback=false;s.residual=0;s.iterations=0;s.correctionOnly=yes(group,"correctionOnly");s.recoverySteps=0;
+        // Opt-in aggregated counters: increments are skipped when the caller does
+        // not ask for them, and the published scalars stay bounded.
+        s.counters=yes(group,"solverCounters");
+        s.cSubsteps=s.cIterations=s.cConstraintCalls=s.cInnerSearch=s.cFallbacks=0;
         for(Body b:s.bodies)b.read(s.persistent);double accumulated=0;
         outer:for(int step=1;step<=steps;step++) {
+            if(s.counters)s.cSubsteps++;
             separate(s);
             s.recoveryStep=s.correctionOnly;
             // The coupled predictor fills this scratch in its existing body pass.
@@ -463,6 +534,20 @@ public final class TowingSolver {
         group.rawset("nativeUnconverged",s.unconverged);
         group.rawset("nativeFallback",s.fallback);group.rawset("recoverySteps",(double)s.recoverySteps);
         group.rawset("solverResidual",s.residual);group.rawset("solverIterations",(double)s.iterations);
+        // Opt-in workload counters shared with the Lua backend. Nothing is
+        // written when disabled, so the default group output is unchanged.
+        if(s.counters){
+            group.rawset("solverBackend",s.persistent?"java-persistent":"java-nonpersistent");
+            group.rawset("solverSubsteps",(double)s.cSubsteps);
+            group.rawset("solverConstraintCalls",(double)s.cConstraintCalls);
+            group.rawset("solverIterationsTotal",(double)s.cIterations);
+            // Match the Lua backend: fixed 28-sample search passes as work and
+            // limit hits (search entries) as the count of entered searches.
+            group.rawset("solverSearchEntries",(double)(28*s.cInnerSearch));
+            group.rawset("solverFallbacks",(double)s.cFallbacks);
+            group.rawset("solverLimitHits",(double)s.cInnerSearch);
+            group.rawset("solverLimitRatio",s.cConstraintCalls>0?(double)s.cInnerSearch/s.cConstraintCalls:0.0);
+        }
         group.rawset("nativeObstruction",s.obstruction);group.rawset("nativeGap",(double)s.gap);
         if(s.gap>0){group.rawset("nativeGapX",s.gapX);group.rawset("nativeGapY",s.gapY);group.rawset("nativeGapZ",s.gapZ);}
         return accumulated;
