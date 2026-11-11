@@ -1,0 +1,2 @@
+PASS solver-bench-final-v2: 4 complete raw forks; all series/checksums/diagnostics; exact summary/bridge regeneration; final source hashes match
+PASS solver-bench-stability: 4 complete raw forks; all series/checksums/diagnostics; exact summary/bridge regeneration; final source hashes match

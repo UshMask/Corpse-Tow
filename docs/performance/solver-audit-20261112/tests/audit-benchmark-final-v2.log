@@ -1,0 +1,40 @@
+[solver_bench] JVM fork 1/4
+[solver_bench] JVM fork 2/4
+[solver_bench] JVM fork 3/4
+[solver_bench] JVM fork 4/4
+[solver_bench] single-rope solve old/new paired ratio median=0.8370932055268102 checksums=match
+[solver_bench] single-rope solvePersistent old/new paired ratio median=0.9963647375031386 checksums=match
+[solver_bench] single-chain-gear solve old/new paired ratio median=1.0081859255771213 checksums=match
+[solver_bench] single-chain-gear solvePersistent old/new paired ratio median=1.0162117996686897 checksums=match
+[solver_bench] single-rope-wall solve old/new paired ratio median=0.9905522422574025 checksums=match
+[solver_bench] single-rope-wall solvePersistent old/new paired ratio median=0.9792151432399832 checksums=match
+[solver_bench] single-chain-tree solve old/new paired ratio median=0.9754865022467838 checksums=match
+[solver_bench] single-chain-tree solvePersistent old/new paired ratio median=1.0111147416715878 checksums=match
+[solver_bench] single-rope-missing-cell solve old/new paired ratio median=0.987785702113746 checksums=match
+[solver_bench] single-rope-missing-cell solvePersistent old/new paired ratio median=1.020525905216756 checksums=match
+[solver_bench] single-chain-solid solve old/new paired ratio median=0.9844865655651823 checksums=match
+[solver_bench] single-chain-solid solvePersistent old/new paired ratio median=1.0119109178588044 checksums=match
+[solver_bench] chain32-straight solve old/new paired ratio median=1.0594688854482754 checksums=match
+[solver_bench] chain32-straight solvePersistent old/new paired ratio median=1.0593556240204465 checksums=match
+[solver_bench] individual32-wall solve old/new paired ratio median=1.2181093636787852 checksums=match
+[solver_bench] individual32-wall solvePersistent old/new paired ratio median=1.251963885057943 checksums=match
+[solver_bench] chain32-weave solve old/new paired ratio median=1.1511279867619282 checksums=match
+[solver_bench] chain32-weave solvePersistent old/new paired ratio median=1.1541082703490766 checksums=match
+[solver_bench] individual32-sinusoid solve old/new paired ratio median=1.112028001643333 checksums=match
+[solver_bench] individual32-sinusoid solvePersistent old/new paired ratio median=1.1230567474342936 checksums=match
+[solver_bench] chain32-jump-gap solve old/new paired ratio median=1.3568421178896433 checksums=match
+[solver_bench] chain32-jump-gap solvePersistent old/new paired ratio median=1.3485601328922587 checksums=match
+[solver_bench] individual32-failed-body solve old/new paired ratio median=1.505047152820887 checksums=match
+[solver_bench] individual32-failed-body solvePersistent old/new paired ratio median=1.5352081815536 checksums=match
+[solver_bench] chain4 solve old/new paired ratio median=1.1357771698048682 checksums=match
+[solver_bench] chain4 solvePersistent old/new paired ratio median=1.1672002047840997 checksums=match
+[solver_bench] individual4 solve old/new paired ratio median=1.2746780913419116 checksums=match
+[solver_bench] individual4 solvePersistent old/new paired ratio median=1.2939711121145319 checksums=match
+[solver_bench] chain8 solve old/new paired ratio median=1.3229029183494374 checksums=match
+[solver_bench] chain8 solvePersistent old/new paired ratio median=1.3521854580682875 checksums=match
+[solver_bench] individual8 solve old/new paired ratio median=1.1476417435469481 checksums=match
+[solver_bench] individual8 solvePersistent old/new paired ratio median=1.1541039702661424 checksums=match
+[solver_bench] four-groups-chain32 solve old/new paired ratio median=1.1408143155308281 checksums=match
+[solver_bench] four-groups-chain32 solvePersistent old/new paired ratio median=1.1436914748181162 checksums=match
+[solver_bench] idle-no-call no-call old/new paired ratio median=n/a (no-call) checksums=match
+[solver_bench] PASS; report: local/runs/solver-bench-final-v2/report.json

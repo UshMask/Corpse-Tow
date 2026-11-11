@@ -1,0 +1,36 @@
+STDOUT
+=== SOLVER EQUIVALENCE HEADER ===
+oracle=three-way (old-java vs new-java, old-lua vs new-lua, new-java vs new-lua)
+baselineJavaPath=<HOME>\Documents\���� ���� ��������\tests\fixtures\solver_baseline\TowingSolver.java
+baselineHashNormalization=utf8-crlf-to-lf
+baselineJavaSha256=A957246BDB14361A878EA96E23AFCF2C45359A646E522700BF294571F006476F
+baselineJavaRawSha256=DC04B22E89B820BB18CBE0C261FF21CA4EEC1BA7E7A317616B7FB63F0D24EA87
+baselineLuaPath=<HOME>\Documents\���� ���� ��������\tests\fixtures\solver_baseline\CVP_GroupConstraints.lua
+baselineLuaSha256=6A77D2484C93D003E09351B654955F8602EC7620B1E31B1484354AF87B0B348E
+baselineLuaRawSha256=7E3E20D9686912C4D5AF5781F3C31B7313FC60D17196DA4F51D1929BF68E571F
+currentJavaPath=<HOME>\Documents\���� ���� ��������\CorpseProxyLab\source\cvpworld\TowingSolver.java
+currentJavaSha256=814E08438E71DE4760CD1B95E7F5BD277F63D070F4D44F2E6BAAE9B28660A0D3
+currentLuaPath=<HOME>\Documents\���� ���� ��������\CorpseProxyLab\42\media\lua\shared\CVP_GroupConstraints.lua
+currentLuaSha256=1B2BE7BE9FB6565BF65905298C6D7EDFEAC2C3D7CC26363D646B890E4EA1FF11
+jarPath=<HOME>\Documents\���� ���� ��������\local\runs\solver-equivalence-20261112-020408\negative-controls\nested-only-jar\nested-stale.jar
+jarFileSha256=5BF87AAC2EEF14089A6ECD6428811FCF9FAE77B8A15B5801DE947D281136D599
+jarTowingSolverClassSha256=4F68F1C7F54F0CF9D61835E49792DB70E31AA0F810E3B0680FB0B4EC8C4958E8
+compiledTowingSolverClassSha256=4F68F1C7F54F0CF9D61835E49792DB70E31AA0F810E3B0680FB0B4EC8C4958E8
+jarClassMatchesCompiled=false
+jarSolverClassCount=4
+jarSolverClasses=cvpworld/TowingSolver$Body.class,cvpworld/TowingSolver$Pose.class,cvpworld/TowingSolver$State.class,cvpworld/TowingSolver.class
+jarMismatchedSolverClasses=cvpworld/TowingSolver$Body.class
+jarClassCheck=enforced
+nativeClass=cvpworld.TowingSolver
+nativeClassSource=file:/<REPO>/local/runs/solver-equivalence-20261112-020408/classes/
+baselineClass=cvpworld.TowingSolverBaseline
+baselineClassSource=file:/<REPO>/local/runs/solver-equivalence-20261112-020408/validators/
+nativeSolverVersion=1
+backend=in-process-java-native (+ kahlua Lua oracle in same JVM)
+luaVm=kahlua null
+=== END SOLVER EQUIVALENCE HEADER ===
+
+STDERR
+Exception in thread "main" java.lang.AssertionError: stale shipped JAR: solver class entries [cvpworld/TowingSolver$Body.class] in <HOME>\Documents\���� ���� ��������\local\runs\solver-equivalence-20261112-020408\negative-controls\nested-only-jar\nested-stale.jar do not match the source compiled for this oracle; run tools/Project.ps1 -Action build and retry
+	at cvpworld.ValidateSolverEquivalence.verifyHeader(ValidateSolverEquivalence.java:250)
+	at cvpworld.ValidateSolverEquivalence.main(ValidateSolverEquivalence.java:151)
