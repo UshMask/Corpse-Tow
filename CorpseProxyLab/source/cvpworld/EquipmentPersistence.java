@@ -440,20 +440,38 @@ public final class EquipmentPersistence {
         if(!Files.exists(file)) return null;
         long size=Files.size(file);int header=MAGIC.length+8+32;
         if(size<header || size>MAX_LEDGER+header) throw new CorruptLedger("invalid equipment ledger size");
-        ByteBuffer buffer=ByteBuffer.wrap(Files.readAllBytes(file));byte[] magic=new byte[MAGIC.length];buffer.get(magic);
+        byte[] original=Files.readAllBytes(file);
+        ByteBuffer buffer=ByteBuffer.wrap(original);byte[] magic=new byte[MAGIC.length];buffer.get(magic);
         if(!Arrays.equals(magic,MAGIC)) throw new UnsupportedLedger("unsupported equipment ledger format");
-        if(buffer.getInt()!=IsoWorld.getWorldVersion()) throw new UnsupportedLedger("unsupported equipment ledger world version");
+        int worldVersion=buffer.getInt();
+        if(!ItemCodec.readableWorldVersion(worldVersion))
+            throw new UnsupportedLedger("unsupported equipment ledger world version: stored="+worldVersion+", current="+IsoWorld.getWorldVersion());
         int length=buffer.getInt();byte[] checksum=new byte[32];buffer.get(checksum);
         if(length!=buffer.remaining()) throw new CorruptLedger("truncated equipment ledger");
         byte[] payload=new byte[length];buffer.get(payload);
         if(!Arrays.equals(checksum,MessageDigest.getInstance("SHA-256").digest(payload))) throw new CorruptLedger("equipment ledger checksum mismatch");
         KahluaTable result=LuaManager.platform.newTable();ByteBuffer source=ByteBuffer.wrap(payload);
-        try { result.load(source,IsoWorld.getWorldVersion()); }
+        try { result.load(source,worldVersion); }
         catch(RuntimeException malformed) { throw new CorruptLedger("invalid equipment ledger payload"); }
         if(source.hasRemaining()) throw new CorruptLedger("equipment ledger trailing data");
         try { validate(result,new IdentityHashMap<>(),0,new int[]{65536}); }
         catch(IllegalArgumentException malformed) { throw new CorruptLedger("invalid equipment ledger values"); }
+        // Reading does not rewrite the ledger. Preserve the exact old frame now,
+        // before a later normal save writes the current world version. Backup I/O
+        // failure is not corruption and must never trigger resetInvalidStore.
+        if(worldVersion!=IsoWorld.getWorldVersion()) preserveUpgrade(file,original,worldVersion);
         return result;
+    }
+    private static void preserveUpgrade(Path file,byte[] original,int worldVersion) throws Exception {
+        String hash=java.util.HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(original));
+        Path backup=file.resolveSibling(file.getFileName()+".world-"+worldVersion+"."+hash+".bak");
+        if(Files.isSymbolicLink(backup)) throw new IOException("equipment upgrade backup symlink refused");
+        try { Files.write(backup,original,StandardOpenOption.CREATE_NEW,StandardOpenOption.WRITE); }
+        catch(java.nio.file.FileAlreadyExistsException exists) { /* Verify, never overwrite. */ }
+        if(!Files.isRegularFile(backup,java.nio.file.LinkOption.NOFOLLOW_LINKS)
+            || Files.size(backup)!=original.length || !Arrays.equals(original,Files.readAllBytes(backup)))
+            throw new IOException("equipment upgrade backup mismatch: "+backup);
+        try(FileChannel channel=FileChannel.open(backup,StandardOpenOption.WRITE)) { channel.force(true); }
     }
     private static Object field(Object object,String name) throws Exception {
         Class<?> type=object instanceof Class<?> c?c:object.getClass();Field f=type.getDeclaredField(name);f.setAccessible(true);
