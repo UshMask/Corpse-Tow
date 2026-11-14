@@ -1,0 +1,15 @@
+# Save-upgrade fixture provenance and limits
+
+[rope-249.txt](rope-249.txt) is the **unmodified first CVPITEM1 payload** extracted from a genuine historical equipment ledger, not a current item relabelled249. Its native20-byte frame hash is `ff231ee960e3c6eaa9d6c98cfe720be9b93ce58f5ad36fbf384e6a6ddf24f09b`; worldVersion249, itemID286250744, Base.Rope, historical registry1547. The original CVPEquipment.bin SHA-256 is `fedd13ad90434e66c637660564b7315c31191484de32f71dc7876268f0cbf957` (19,126 bytes, CVPEQ1/worldVersion249,24 embedded snapshots).
+
+Original local provenance is the 2026-10-29 isolated MP prototype backup. Its report explicitly records B42.21 and its world dictionary log records MP072/worldVersion249. No original full ledger is committed: it may contain actor/player identifiers. This fixture contains only a20-byte native item frame (length, registry, native marker, numeric itemID and native flags/state), numeric snapshot ID/version/type and SHA-256/Base64 wrappers. Native249 load on installed251 was privacy-reviewed: default Rope/condition10, no custom player name or private credentials. A placeholder target may have constructor-generated `customName=Rope` moddata; that is not an identifying value from an original player.
+
+[ValidateSaveUpgrade.java](../../ValidateSaveUpgrade.java) uses an **unowned native target seam**, just like the existing ValidateWorld codec test. It does not bootstrap a real WorldDictionary or ScriptManager, bypass a production registry guard, or establish live ownership transfer. The public Lua API still resolves the real save's registry through native factory/dictionary checks.
+
+The validator's ledger is **synthetic Kahlua data/framing** generated in the test and marked worldVersion249, with this genuine old item string nested in it. It verifies the249→251 allowlist, stored-version Kahlua loading, checksums/framing/refusal classes, immutable source, and rewrite-current/reload; it is NOT a genuine complete42.21 save or old-game-produced Kahlua payload. Separate local-only cloned real MP and manual ledgers were rejected before the fix; the narrow native item.load(...,249) proof consumed all24 original MP item frames on installed251. Full SP/MP save migration and registry/bootstrap behavior require a cloned in-game save test.
+
+The supported migration pair is deliberately only249→251, plus exact current-version reads. Future/unknown older versions are not accepted by range. New writes always use the native current world version. Journal schema/protocol versions are unchanged.
+
+Successful old-version reads now preserve an exact, content-addressed `.world-249.<sha256>.bak` before normal writes can replace the original ledger. Backup failures block loading without resetting the source. The regression also tests repeated reads, backup collisions and failed replacement.
+
+Run `tools/check_save_upgrade.py` with installed game/JDK/dependency paths. Optional repeated `--ledger` arguments validate full genuine historical journals on temporary copies; these are not included in the repository.

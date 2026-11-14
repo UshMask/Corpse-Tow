@@ -23,6 +23,13 @@ public final class ItemCodec {
 
     private ItemCodec() {}
 
+    // Native-load verified upgrade pair only. The decoder still receives the
+    // stored version; unknown older and future formats remain unsupported.
+    static boolean readableWorldVersion(int stored) {
+        int current=IsoWorld.getWorldVersion();
+        return stored==current || (stored==249 && current==251);
+    }
+
     private static void authority() {
         if(GameClient.client) throw new IllegalStateException("item snapshots are authoritative SP/server only");
     }
@@ -71,7 +78,7 @@ public final class ItemCodec {
         if(fields.length!=6 || !PREFIX.equals(fields[0]) || !material(fields[3]) || !fields[4].matches("[0-9a-f]{64}"))
             throw new IllegalArgumentException("unsupported item snapshot");
         int worldVersion=Integer.parseInt(fields[1]),id=Integer.parseInt(fields[2]);
-        if(worldVersion!=IsoWorld.getWorldVersion()) throw new IllegalArgumentException("item world version mismatch");
+        if(!readableWorldVersion(worldVersion)) throw new IllegalArgumentException("item world version mismatch");
         if(fields[5].length()>((MAX_BYTES+2)/3)*4) throw new IllegalArgumentException("item payload too large");
         byte[] bytes=Base64.getDecoder().decode(fields[5]);
         if(bytes.length<11 || bytes.length>MAX_BYTES) throw new IllegalArgumentException("invalid item byte count");
