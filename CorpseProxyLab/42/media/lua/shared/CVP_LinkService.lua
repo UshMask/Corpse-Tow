@@ -70,24 +70,26 @@ function Service:prepare(p,target,gearID,shared,reuse,revision)
     if not self.host.enabled() then return nil,'towing disabled' end
     local actor=self.host.actor(p);if not usable(actor) then return nil,'leave vehicle or unavailable player' end
     local graph,err=self:refresh();if not graph then return nil,err end
-    local e,why=self.host.resolve(target,p);if not e then return nil,why end
-    if e.kind~='body' and not G.tractor(e) or not self:near(p,actor,e) then return nil,'endpoint not reachable' end
-    local denied=self:joinable(actor,e);if denied then return nil,denied end
-    local item,equipment,owner
+    local item,equipment,owner,link
     if reuse then
-        local link=graph.links[reuse]
+        link=graph.links[reuse]
         if not shared or not link or link.revision~=revision or not link.allocation then return nil,'stale connection' end
         if not actor.allowOthers and link.owner~=actor.key then return nil,'not owner' end
-        if e.kind~='body' or #(self.index.byBody[e.key] or {})~=1 then return nil,'body branch' end
-        local same=false;for _,side in ipairs({'a','b'}) do local endPoint=link[side]
-            if endPoint.kind==e.kind and endPoint.key==e.key and endPoint.point==e.point then same=true end
-        end
-        if not same then return nil,'invalid endpoint' end
         local ready,why=self.store.linkReady(link);if not ready then return nil,why end
         equipment=link.equipment;owner=link.owner
     else
         item=self.host.item(p,gearID)
         if not item or not G.materials[item:getFullType()] or shared and item:getFullType()~='Base.Rope' then return nil,'material unavailable' end
+    end
+    local e,why=self.host.resolve(target,p);if not e then return nil,why end
+    if e.kind~='body' and not G.tractor(e) or not self:near(p,actor,e) then return nil,'endpoint not reachable' end
+    local denied=self:joinable(actor,e);if denied then return nil,denied end
+    if reuse then
+        if e.kind~='body' or #(self.index.byBody[e.key] or {})~=1 then return nil,'body branch' end
+        local same=false;for _,side in ipairs({'a','b'}) do local endPoint=link[side]
+            if endPoint.kind==e.kind and endPoint.key==e.key and endPoint.point==e.point then same=true end
+        end
+        if not same then return nil,'invalid endpoint' end
     end
     local token=self.host.uuid()
     local now=self.host.now();local batch=self.pending[actor.key]

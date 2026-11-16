@@ -14,7 +14,8 @@ local function sameObjects(a,b)
     return true
 end
 function H.new()
-    local h={bodies={},vehicles={},players={},poses=setmetatable({},{__mode='k'}),confirmed=setmetatable({},{__mode='k'})}
+    local h={bodies={},nativeBodies={},vehicles={},nativeVehicles={},players={},
+        poses=setmetatable({},{__mode='k'}),confirmed=setmetatable({},{__mode='k'})}
     function h.now() return getTimestampMs() end
     function h.uuid() return getRandomUUID() end
     h.enabled=World.towingEnabled;h.maxBodies=World.maxChain
@@ -63,7 +64,9 @@ function H.new()
     end
     function h.discover()
         h.nextDiscovery=h.now()+1000
-        local bodies,cars,horses={},{},{}
+        -- Complete native indexes make misses O(1) for this interval without
+        -- retaining attacker-selected IDs or growing a negative-key cache.
+        local bodies,nativeBodies,cars,nativeVehicles,horses={},{},{},{},{}
         for _,horse in ipairs(Horse.all()) do if horse:getSquare() then
             local id=Horse.key(horse)
             if horses[id]~=nil and horses[id]~=horse then horses[id]=false else horses[id]=horse end
@@ -73,6 +76,10 @@ function H.new()
             for i=0,all:size()-1 do local b=all:get(i);local id=b:getModData().CVPBodyKey
                 if key(id) then
                     if bodies[id]~=nil and bodies[id]~=b then bodies[id]=false else bodies[id]=b end
+                end
+                local native=CVPNetwork.id(b)
+                if P.id(native) then
+                    if nativeBodies[native]~=nil and nativeBodies[native]~=b then nativeBodies[native]=false else nativeBodies[native]=b end
                 end
             end
         end
@@ -86,6 +93,10 @@ function H.new()
                 local sql=v:getSqlId()
                 if sql and sql>0 then local name='sql:'..tostring(sql)
                     if cars[name]~=nil and cars[name]~=v then cars[name]=false else cars[name]=v end
+                end
+                local native=v:getId()
+                if P.integer(native) then
+                    if nativeVehicles[native]~=nil and nativeVehicles[native]~=v then nativeVehicles[native]=false else nativeVehicles[native]=v end
                 end
             end
         end
@@ -102,7 +113,8 @@ function H.new()
             or not sameObjects(h.availableBodies,available) then
             h.generation=(h.generation or 0)+1
         end
-        h.bodies=bodies;h.vehicles=cars;h.horses=horses;h.availableBodies=available
+        h.bodies=bodies;h.nativeBodies=nativeBodies;h.vehicles=cars;h.nativeVehicles=nativeVehicles
+        h.horses=horses;h.availableBodies=available
     end
     function h.horse(ref)
         local horse=h.horses and h.horses[ref.key]
@@ -119,7 +131,17 @@ function H.new()
             if not P.id(ref.native) or not CVPNetwork then
                 return nil,not b and 'body not found' or not World.towable(b) and 'body not towable' or 'body unloaded'
             end
-            b=CVPNetwork.find(ref.native)
+            local native=h.nativeBodies[ref.native]
+            if native and World.towable(native) and World.present(native,readPass) then b=native
+            -- Preserve immediate replacement of a known stale object without
+            -- allowing arbitrary native IDs to scan the corpse registry.
+            elseif b and CVPNetwork.id(b)==ref.native and native~=false
+                and (not h.nextNativeLookup or h.now()>=h.nextNativeLookup) then
+                h.nextNativeLookup=h.now()+1000
+                local found=CVPNetwork.find(ref.native)
+                if World.towable(found) and World.present(found,readPass) then b=found else b=nil end
+                h.nativeBodies[ref.native]=b or false
+            else b=nil end
             if not b then return nil,'body not found' end
             if not World.towable(b) then return nil,'body not towable' end
             if not World.present(b,readPass) then return nil,'body unloaded' end
@@ -133,7 +155,7 @@ function H.new()
     function h.retryBody(ref)
         local b,reason=h.body(ref)
         if not b and (reason=='body not found' or reason=='body unloaded') then
-            h.discover()
+            h.discoverIfDue()
             b,reason=h.body(ref)
         end
         return b,reason
@@ -167,16 +189,18 @@ function H.new()
         local v;if key(ref.key) then v=h.vehicles[ref.key] end
         if v==false then return end
         if not v and P.integer(ref.native) then
-            local all=getCell():getVehicles():iterator()
-            while all:hasNext() do local candidate=all:next()
-                if candidate:getId()==ref.native then v=candidate;break end
-            end
+            v=h.nativeVehicles[ref.native]
         end
         if not v or not v:getSquare() then return end
         local sql=v:getSqlId();local id=sql and sql>0 and ('sql:'..tostring(sql)) or nil
         local vehicleKey=v:getModData().CVPVehicleKey
         if h.vehicles[id]==false or h.vehicles[vehicleKey]==false then return end
         if ref.key and ref.key~=id and ref.key~=vehicleKey then return end
+        return v
+    end
+    function h.retryVehicle(ref)
+        local v=h.vehicle(ref)
+        if not v then h.discoverIfDue();v=h.vehicle(ref) end
         return v
     end
     function h.bodyPoint(b,point)
@@ -217,7 +241,7 @@ function H.new()
             return Horse.sample(horse)
         elseif ref.kind=='vehicle' then
             if ref.point~=nil and ref.point~='hitch' and ref.point~='front' then return nil,'invalid attachment point' end
-            local v=h.vehicle(ref);if not v then return nil,'vehicle unavailable' end
+            local v=h.retryVehicle(ref);if not v then return nil,'vehicle unavailable' end
             if math.abs(v:getCurrentSpeedKmHour())>1 then return nil,'stop vehicle' end
             local sql=v:getSqlId();if not sql or sql<=0 then return nil,'vehicle not saved yet' end
             local id=ref.key or ('sql:'..tostring(sql));h.vehicles[id]=v

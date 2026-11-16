@@ -14,12 +14,13 @@ def service(saved=None):
         player.x=0;player.y=0;player.z=0;player.alive=true;player.onFoot=true
         other={key='other-player',x=3,y=0,z=0,alive=true,onFoot=true,others=true}
         targets={A=bodyEnd('A'),B=bodyEnd('B',3),car=carEnd('car',3)}
-        enabled=true;limit=32;blocked=false;clock=0;ids=0
+        enabled=true;limit=32;blocked=false;clock=0;ids=0;resolveCalls=0
         host={now=function() return clock end,uuid=function() ids=ids+1;return 'link-id-'..ids end,
             actor=function(p) return {key=p.key,x=p.x,y=p.y,z=p.z,alive=p.alive,onFoot=p.onFoot,allowOthers=p.others} end,
             enabled=function() return enabled end,maxBodies=function() return limit end,
             canReach=function(p,e) return not blocked end,
             resolve=function(ref,p)
+                resolveCalls=resolveCalls+1
                 if type(ref)~='table' then return nil,'invalid target' end
                 if ref.kind=='ground' then return ground(p.x,p.y,p.z) end
                 local target=targets[ref.key]
@@ -66,6 +67,16 @@ class LinkServiceTests(unittest.TestCase):
             with self.subTest(setup=setup):
                 l=service();l.execute(setup+''';assert(not S:prepare(player,{kind='body',key='A'},42))
                     assert(original.owner==source and transfers==0)''')
+
+    def test_prepare_rejects_missing_prerequisites_before_target_resolution(self):
+        l=service();l.execute('''
+            stowed=false
+            local token,why=S:prepare(player,{kind='body',key='missing'},42)
+            assert(not token and why=='material unavailable' and resolveCalls==0)
+            token,why=S:prepare(player,{kind='body',key='missing'},nil,true,'missing-link',1)
+            assert(not token and why=='stale connection' and resolveCalls==0)
+            assert(original.owner==source and transfers==0)
+        ''')
 
     def test_expired_or_moved_first_endpoint_cannot_complete(self):
         for setup in ('clock=120001','targets.A.x=1.01','targets.A=nil','player.x=20','blocked=true','player.onFoot=false','stowed=false'):
