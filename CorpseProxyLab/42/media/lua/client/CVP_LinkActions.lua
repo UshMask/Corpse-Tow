@@ -88,6 +88,11 @@ function Actions:begin(p,total,kind,after)
                     if not accepted then self:finish(false,nil,why);return end
                 end
                 self.visualSource=G.copy(target);result=result.token
+            elseif name=='bindPrepare' then
+                if type(result)~='table' or type(result.token)~='string' then
+                    self:finish(false,nil,'invalid preparation reply');return
+                end
+                result=result.token
             elseif name=='create' then
                 self.visualSource=nil
                 if CVPFreeRopeScene then CVPFreeRopeScene.remove(self.visualId) end
@@ -233,16 +238,19 @@ function Actions:reconnect(p,id,revision,side,target,after,gear)
         return nil,point
     end
     job:stage(row[side],nil,false,function()
-        local function bind()
+        local function bind(continuation)
             job.guard={targetGuard}
             job:stage(target,gear,false,function()
-                job:request('command',{id=id,revision=revision,side=side,op='bind',target=target,gear=gear and gear:getID()},
+                job:request('command',{id=id,revision=revision,side=side,op='bind',target=target,
+                    gear=gear and gear:getID(),continuation=continuation},
                     function(result) job:finish(true,result) end)
             end)
         end
         -- A short held end would be dropped before reaching the farther target.
         -- Visit the tail, then carry the new inventory rope to the target instead.
-        if gear then bind() else
+        if gear then
+            job:request('bindPrepare',{id=id,revision=revision,side=side,gear=gear:getID()},bind)
+        else
             job:request('command',{id=id,revision=revision,side=side,op='take'},function()
                 revision=revision+1;expectedKind='held';bind()
             end)

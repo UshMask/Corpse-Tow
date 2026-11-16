@@ -26,7 +26,7 @@ without transport or client-side writes to authoritative body positions. These r
 ## Multiplayer snapshot preparation
 
 The original snapshot preparation optimization kept the wire format intact.
-The later unification below uses protocol 13; page limits, interest radius,
+The current transport uses protocol 14; page limits, interest radius,
 heartbeat and recovery lifetimes remain unchanged.
 
 - The body-to-simulation-record lookup is rebuilt when the published records
@@ -94,7 +94,7 @@ staggered half-second cadence. The directed-chain experiments were rejected by
 stationary dense-chain tests; the coupled solver remains in use.
 
 
-## Shared result contract, frame schema 1 / wire protocol 13
+## Shared result contract, frame schema 1 / wire protocol 14
 
 `CVP_SimulationFrame.capture` freezes the accepted result after simulation and
 world pose application. Both SP and server runtime publish it as `simulationFrame`.
@@ -186,9 +186,11 @@ The implementation path is complete; live acceptance is still outstanding.
   Out-of-order packets/generations are rejected. Losing local ownership blocks the
   cached load until fresh feedback; epochs clear all ownership history. Force is
   unchanged for 250 ms, then fades linearly to zero by 1000 ms without feedback.
-- Protocol 13 has `state` (complete graph/appearance/recovery), `motion` (poses,
+- Protocol 14 has `state` (complete graph/appearance/recovery), `motion` (poses,
   dynamic endpoint coordinates/lengths and obstacles for a confirmed revision)
-  and independently assembled `loads`. Appearance acknowledgements retain their
+  and independently assembled `loads`. It also requires a server-issued, one-time
+  continuation before a spare rope can authorize a remote loose-end bind.
+  Appearance acknowledgements retain their
   existing contract: first appearance or a changed revision uses a full snapshot;
   ordinary motion omits acknowledged cosmetic/clothing payloads.
 - Motion is validated and assembled atomically against its confirmed topology.
@@ -196,7 +198,7 @@ The implementation path is complete; live acceptance is still outstanding.
   membership changes and invalid baselines request full sync. Commands, result
   barriers, body transfers, durable writes and rollback keep their existing paths.
 
-Both server and all clients require protocol 13 and the rebuilt JAR. No save
+Both server and all clients require protocol 14 and the rebuilt JAR. No save
 migration is needed. `CVP_LoadPrediction` is retained solely as a historical
 harness adapter; production has no load predictor or prediction-state allocation.
 

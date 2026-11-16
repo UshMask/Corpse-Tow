@@ -109,6 +109,49 @@ class LinkServiceTests(unittest.TestCase):
             assert(E.links().links[linkID].length==5)
         ''')
 
+    def test_remote_ground_bind_requires_bound_one_time_visit(self):
+        l=service();l.execute('''
+            create();targets.B.x=6;player.x=6
+            local revision=S.graph.links[linkID].revision
+            assert(not S:command(player,{op='bind',id=linkID,revision=revision,side='b',target={kind='body',key='B'},gear=0}))
+            assert(S.graph.links[linkID].b.kind=='ground')
+            extra=item({id=43,type='Base.Rope'});source:AddItem(extra);player.x=3
+            assert(not S:prepareBind(player,{id=linkID,revision=revision,side='b',gear=0}))
+            local token=assert(S:prepareBind(player,{id=linkID,revision=revision,side='b',gear=43}))
+            player.x=6
+            assert(S:command(player,{op='bind',id=linkID,revision=revision,side='b',target={kind='body',key='B'},gear=43,continuation=token}))
+            assert(S.graph.links[linkID].b.key=='B' and extra:getContainer()==source)
+        ''')
+
+    def test_bind_visit_expires_clears_and_revalidates_gear(self):
+        for invalidation in ('clock=30001', 'S:disconnect(player.key)',
+                             "assert(S:tick({[linkID]={a=targets.A,b=ground(2)}},{}))",
+                             'source:Remove(extra)'):
+            with self.subTest(invalidation=invalidation):
+                l=service();l.globals().invalidation=invalidation;l.execute('''
+                    create();targets.B.x=6;extra=item({id=43,type='Base.Rope'});source:AddItem(extra)
+                    local revision=S.graph.links[linkID].revision
+                    local token=assert(S:prepareBind(player,{id=linkID,revision=revision,side='b',gear=43}))
+                    assert(loadstring(invalidation))();player.x=6
+                    if invalidation:find('S:tick',1,true) then assert(S.bindVisits[player.key]==nil) end
+                    assert(not S:command(player,{op='bind',id=linkID,revision=revision,side='b',
+                        target={kind='body',key='B'},gear=43,continuation=token}))
+                    assert(S.graph.links[linkID].b.kind=='ground')
+                ''')
+
+    def test_failed_remote_bind_consumes_visit(self):
+        l=service();l.execute('''
+            create();extra=item({id=43,type='Base.Rope'});source:AddItem(extra)
+            local revision=S.graph.links[linkID].revision
+            local token=assert(S:prepareBind(player,{id=linkID,revision=revision,side='b',gear=43}))
+            player.x=6;targets.B.x=6
+            assert(not S:command(player,{op='bind',id=linkID,revision=revision,side='b',
+                target={kind='body',key='missing'},gear=43,continuation=token}))
+            assert(not S:command(player,{op='bind',id=linkID,revision=revision,side='b',
+                target={kind='body',key='B'},gear=43,continuation=token}))
+            assert(S.graph.links[linkID].b.kind=='ground')
+        ''')
+
     def test_delayed_lifecycle_release_cannot_undo_new_player_binding(self):
         l=service();l.execute('''
             create({kind='body',key='B'});local row=S.graph.links[linkID]

@@ -7,6 +7,7 @@ English player-facing release history. Entries below retain their original publi
 - Added Spanish translations for Spain, Mexico and Chile, including menu text and world settings.
 - Fixed percent formatting in the Spanish carcass-wear description.
 - Clarified context actions for untying a body, detaching a vehicle or horse, and removing rope or chain. Added short hints for attachment methods and display settings.
+- Loose-end reconnects with a spare rope now require a short-lived server confirmation from the visited end. Wire protocol 14 requires updating both server and clients; save schemas are unchanged.
 
 ## Corpse Tow 0.8.0 — published 9 Nov 2026
 
