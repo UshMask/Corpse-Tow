@@ -29,10 +29,10 @@ public class ValidateBodyWear {
             throw new AssertionError("vanilla skeleton transition changed identity or failed to clear contents");
         BodyWearNative.becomeSkeleton(body);
         GameClient.client=true;
-        boolean denied=false;try { BodyWearNative.skeleton(body); } catch(IllegalArgumentException expected) {denied=true;}
+        boolean denied=false;try { BodyWearNative.skeletonTransition(body); } catch(IllegalArgumentException expected) {denied=true;}
         if(!denied) throw new AssertionError("client permitted wear");
         GameClient.client=false;zombie.setBoolean(body,false);denied=false;
-        try { BodyWearNative.remove(body,null); } catch(IllegalArgumentException expected) {denied=true;}
+        try { BodyWearNative.removeTransition(body,null); } catch(IllegalArgumentException expected) {denied=true;}
         if(!denied) throw new AssertionError("player corpse permitted wear");
         System.out.println("PASS vanilla skeleton transition, identity preservation, authority and player protection");
     }

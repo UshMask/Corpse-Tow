@@ -2,10 +2,11 @@
 -- A durable corpse marker precedes irreversible changes. Replays are idempotent.
 local W={}
 local distances={2000,1000,500}
+local SaveJobs=require 'CVP_SaveJobs'
 local function eligible(b) return b and b:isZombie() and not b:isPlayer() end
 function W.distance() return distances[(SandboxVars.CorpseProxyLab or {}).BodyWearRate or 2] or 1000 end
-local function checkpoint(b)
-    local ok,result=pcall(CVPEquipmentPersistence.checkpointSquare,b:getSquare())
+local function checkpoint(square)
+    local ok,result=SaveJobs.call('checkpointSquare',square)
     return ok and result==true
 end
 function W.committed(group,pending)
@@ -42,23 +43,34 @@ local function recoverBody(runtime,b,square,row)
     local live=b:getStaticMovingObjectIndex()>=0
     if live then square=b:getSquare() end
     if not square or getCell():getGridSquare(square:getX(),square:getY(),square:getZ())~=square then
-        return false,'body wear square unavailable'
+        return false,nil,'body wear square unavailable'
     end
     runtime.simulation.wearPending[b]=square
-    if not CVPBodyWearNative then return false,'body wear backend unavailable' end
+    if not CVPBodyWearNative or type(CVPBodyWearNative.skeletonTransition)~='function'
+        or type(CVPBodyWearNative.removeTransition)~='function' then
+        return false,nil,'body wear backend unavailable'
+    end
     -- If removal already happened in memory, retry its final checkpoint.
-    if live and not checkpoint(b) then return false,'body wear marker save failed' end
+    if live then
+        if not checkpoint(square) then return false,nil,'body wear marker save failed' end
+        -- Never start two full-chunk snapshots in one authority-tick resume.
+        coroutine.yield()
+    end
     if row.pending==1 then
-        local ok,done=pcall(CVPBodyWearNative.skeleton,b)
-        if not ok or not done then return false,'skeleton transition save failed' end
+        local ok,done=pcall(CVPBodyWearNative.skeletonTransition,b)
+        if not ok or not done then return false,nil,'skeleton transition save failed' end
+        if not checkpoint(square) then return false,nil,'skeleton transition save failed' end
+        coroutine.yield()
         row.stage=1;row.distance=0;row.pending=nil
-        if not checkpoint(b) then row.pending=1;return false,'skeleton state save failed' end
+        if not checkpoint(square) then row.pending=1;return false,nil,'skeleton state save failed' end
     else
         local key=b:getModData().CVPBodyKey
         local ok,why=runtime.service:unloadBody(key,{x=b:getX(),y=b:getY(),z=math.floor(b:getZ())+.05})
-        if not ok then return false,why end
-        local called,done=pcall(CVPBodyWearNative.remove,b,square)
-        if not called or not done then return false,'body removal save failed' end
+        if not ok then return false,nil,why end
+        -- A graph write may have completed in this resume; removal gets its own budget.
+        coroutine.yield()
+        local called,done=pcall(CVPBodyWearNative.removeTransition,b,square)
+        if not called or not done or not checkpoint(square) then return false,nil,'body removal save failed' end
         -- The square checkpoint already confirmed removal. Do not rediscover an
         -- in-memory corpse retained by another cache as an unfinished transition.
         row.stage=2;row.pending=nil
@@ -68,25 +80,40 @@ end
 function W.recover(runtime)
     local pending=runtime.simulation.wearPending
     local retries=runtime.wearRetries or {};runtime.wearRetries=retries
-    local now=runtime.host.now();local problem
+    local now=runtime.host.now();local budget=runtime.authorityTick or now;local problem
+    local fresh,repeated
     for b,square in pairs(pending) do
         local row=b:getModData().CVPBodyWear
         if not row or not row.pending or not eligible(b) then pending[b]=nil;retries[b]=nil
         else
             local retry=retries[b]
-            if not retry or now>=retry.at then
-                local stage=row.pending
-                local called,ok,why=pcall(recoverBody,runtime,b,square,row)
-                if called and ok then
-                    pending[b]=nil;retries[b]=nil
-                    -- UI failures must never retry a committed destructive transition.
-                    pcall(W.notify,runtime,b,stage)
-                else
-                    local err=tostring(called and why or ok)
-                    retries[b]={at=now+5000,error=err};problem=problem or err
-                end
-            else problem=problem or retry.error end
+            if retry then
+                problem=problem or retry.error
+                if now>=retry.at and not repeated then repeated={b,square,row} end
+            elseif not fresh then fresh={b,square,row} end
         end
+    end
+    -- The runtime's global save slot is the count budget: one coroutine resume per
+    -- tick, with unfinished work and failures retained for later frames.
+    if runtime.saveJob or runtime.wearAdvancedTick==budget then return problem==nil,problem end
+    local selected=fresh or repeated
+    if selected then
+        local b,square,row=selected[1],selected[2],selected[3]
+        local stage=row.pending;local job
+        job=SaveJobs.new(function() return recoverBody(runtime,b,square,row) end,function(ok,value,why)
+            runtime.wearAdvancedTick=runtime.authorityTick or runtime.host.now()
+            if runtime.saveJob==job then runtime.saveJob=nil end
+            if ok then
+                pending[b]=nil;retries[b]=nil
+                -- UI failures must never retry a committed destructive transition.
+                pcall(W.notify,runtime,b,stage)
+            else
+                retries[b]={at=runtime.host.now()+5000,error=tostring(why or value or 'body wear transition failed')}
+            end
+        end,function() end)
+        job.player=false;job.wear=true;runtime.saveJob=job;runtime.wearAdvancedTick=budget
+        SaveJobs.advance(job)
+        local retry=retries[b];if retry then problem=problem or retry.error end
     end
     return problem==nil,problem
 end
