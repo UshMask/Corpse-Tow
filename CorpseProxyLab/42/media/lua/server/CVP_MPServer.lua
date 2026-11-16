@@ -5,6 +5,7 @@ local G=require 'CVP_LinkGraph'
 local Runtime=require 'CVP_LinkRuntime'
 local Appearance=require 'CVP_Appearance'
 local LoadWindow=require 'CVP_LoadWindow'
+local publicReason=require 'CVP_LinkMessages'
 local S={schema=4,authority=Runtime.new(),peers=setmetatable({},{__mode='k'}),sequence=0,
     epoch=getRandomUUID(),known={},terminal={},loadWindow=LoadWindow.new(),loadOwners=setmetatable({},{__mode='k'}),
     -- Fixed-size counters only; per-peer counterparts live on each peer.
@@ -258,6 +259,9 @@ function S.publish(p,snapshot,onlyChanged)
     for key in pairs(peer.appearanceAck or {}) do if not offered[key] then peer.appearanceAck[key]=nil end end
 end
 local function sendResult(p,peer,request,result)
+    -- Result reasons cross the server/client trust boundary. Keep only the
+    -- established localization allowlist; backend diagnostics remain server-side.
+    if result.reason~=nil then result.reason=publicReason(result.reason) end
     result.protocol=W.version;result.epoch=S.epoch;result.session=peer.session;result.request=request
     S.stats.results=S.stats.results+1
     if peer.stats then peer.stats.results=peer.stats.results+1 end
