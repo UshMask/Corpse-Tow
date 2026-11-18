@@ -37,7 +37,7 @@ function Runtime:players(players)
     return true
 end
 function Runtime:discover(players)
-    self.host.discover()
+    self.host.discoverIfDue()
     require('CVP_BodyWear').observe(self)
     local now=self.host.now()
     for _,p in ipairs(players) do

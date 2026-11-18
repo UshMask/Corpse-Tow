@@ -20,7 +20,29 @@ class LinkPerformanceTests(unittest.TestCase):
                 local resolved=assert(H.resolve(ref,player));assert(resolved.key=='A')
                 body2.md.CVPBodyKey='other';assert(not H.body(ref))
                 body2.md.CVPBodyKey='A';H.bodies.A=false;assert(not H.body(ref))
-                H.bodies.A=body;body2.world=false;assert(not H.body(ref))
+                H.bodies.A=body;body2.world=false;now=now+1000
+                assert(not H.body(ref) and reads==2)
+                assert(not H.body(ref) and reads==2,'negative native lookup repeated registry scan')
+                assert(rope:getContainer()==storage and chain:getContainer()==storage)
+            """)
+
+    def test_authority_native_misses_share_discovery_without_registry_scans(self):
+        for server in (False, True):
+            l=environment();l.globals().serverMode=server;l.execute("""
+                function isServer() return serverMode end
+                local discoveries,finds=0,0
+                local discover=H.discover;H.discover=function() discoveries=discoveries+1;return discover() end
+                local find=CVPNetwork.find;CVPNetwork.find=function(...) finds=finds+1;return find(...) end
+                now=H.nextDiscovery
+                for i=1,64 do
+                    local b,why=H.retryBody({kind='body',native=tostring(100000+i)})
+                    assert(not b and why=='body not found')
+                    assert(not H.retryVehicle({kind='vehicle',native=100000+i}))
+                end
+                assert(R:discover({player}))
+                assert(discoveries==1 and finds==0,'native misses bypassed shared discovery index')
+                assert(H.body({kind='body',native=body.netID})==body)
+                assert(H.vehicle({kind='vehicle',native=17})==car)
                 assert(rope:getContainer()==storage and chain:getContainer()==storage)
             """)
 
