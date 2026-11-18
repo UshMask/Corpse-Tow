@@ -20,6 +20,8 @@ MODULES = (
     'test_save_jobs',
     'test_save_queue',
     'test_mp_budget',
+    'test_mp_test_stand',
+    'test_idle_runtime',
     'test_link_multiplayer',
     'test_link_performance',
     'test_diagnostics',

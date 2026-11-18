@@ -92,8 +92,11 @@ class MPTestStandTests(unittest.TestCase):
                     b.netID=tostring(100000+#bodies);return b
                 end
                 sendCorpse=function() sentBodies=sentBodies+1 end
+                local host=CVPMPServer.authority.host;local discover=host.discover;local scans=0
+                host.discover=function() scans=scans+1;return discover() end
                 local result=CVPMPTestServer.reset(player,count)
                 assert(#result.targets==count and #result.gear==count and sentBodies==count)
+                assert(scans==(count>0 and 2 or 1),'one planning scan and at most one scan of new bodies')
                 assert(fixtureState.count==count and fixtureState.vehicle)
                 CVPMPTestServer.reset(player,0)
                 assert(fixtureState.count==0 and fixtureState.vehicle)

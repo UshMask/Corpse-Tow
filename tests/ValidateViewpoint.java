@@ -7,7 +7,13 @@ public class ValidateViewpoint {
   Class<?> body=Class.forName("zombie.iso.objects.IsoDeadBody",false,bridge.getClassLoader());
   Class.forName("viewpoint.models.Corpses").getDeclaredMethod("pick",frame);
   Class.forName("viewpoint.game.WorldText",false,bridge.getClassLoader()).getDeclaredMethod("snapshot",frame,Class.forName("zombie.iso.IsoCell",false,bridge.getClassLoader()),int.class);
-  Class.forName("viewpoint.models.CorpseCapture",false,bridge.getClassLoader()).getDeclaredMethod("draw",frame,body,Class.forName("viewpoint.models.CorpsePose"),float.class,int.class,boolean.class);
+  var capture=Class.forName("viewpoint.models.CorpseCapture",false,bridge.getClassLoader());
+  var pose=Class.forName("viewpoint.models.CorpsePose");
+  try { capture.getDeclaredMethod("draw",frame,body,pose,float.class,int.class,boolean.class); }
+  catch(NoSuchMethodException legacy) {
+    // Viewpoint 0.1.7 adds a float and keeps the patched arguments in place.
+    capture.getDeclaredMethod("draw",frame,body,pose,float.class,int.class,boolean.class,float.class);
+  }
   bridge.getMethod("clear").invoke(null);
   var unsafeField=sun.misc.Unsafe.class.getDeclaredField("theUnsafe");unsafeField.setAccessible(true);
   Object corpse=((sun.misc.Unsafe)unsafeField.get(null)).allocateInstance(body);
