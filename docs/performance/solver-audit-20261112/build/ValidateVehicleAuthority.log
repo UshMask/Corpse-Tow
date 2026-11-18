@@ -1,0 +1,17 @@
+PASS quiet bridge matches native vectors, accumulation and pooled reuse
+PASS real impulse queue: opposite vectors, coordinate axes, attachment lever arm
+PASS real server discards queued forces even for Server authorization
+PASS native owner ID checks and queue discard after ownership change
+PASS native constraint assigns both cars to towing driver, including two occupied cars
+java.exe : WARNING: A terminally deprecated method in sun.misc.Unsafe has been called
+At <REPO>\tools\Project.ps1:138 char:5
++     & $exe @arguments *> $log
++     ~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (WARNING: A term...has been called:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+WARNING: sun.misc.Unsafe::objectFieldOffset has been called by org.joml.MemUtil$MemUtilUnsafe (file:/<GAME>/projectzomboid.jar)
+WARNING: Please consider reporting this to the maintainers of class org.joml.MemUtil$MemUtilUnsafe
+WARNING: sun.misc.Unsafe::objectFieldOffset will be removed in a future release
+PASS accepted motion timestamps, immutable anchors, handoff and rejected sender
+LIMIT: no world, Bullet step, vehicle movement or network transport was run

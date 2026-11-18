@@ -1,0 +1,546 @@
+{
+  "schema": "cvp-all-production-jar-proof/1",
+  "status": "passed",
+  "reviewedCommit": "112257aa610b91b81ac6f2cae9bf4b664732714e",
+  "compiler": "javac 25.0.4.1",
+  "buildRun": "build-20261112-014526-420",
+  "jarSha256": "d18a09978b13eb9eb1724aebdac499cd517e5aaf528b1c5cc281e20a0dede18e",
+  "productionClassCount": 74,
+  "classInventoryExact": true,
+  "canonicalSourcesMatchPublicWorktree": true,
+  "normalization": "UTF-8 bytes CRLF to LF only",
+  "sourceCanonicalSha256": {
+    "CorpseProxyLab/source/cvprender/BodyPlacement.java": "aab157845135a082004766b5629b8335d3e002f8d06ad92b3da796c5a4284907",
+    "CorpseProxyLab/source/cvprender/Bridge.java": "5bd85a95a6476b489c84c606884e70a4d9bfd22b99edab053bd0cc2863abb105",
+    "CorpseProxyLab/source/cvprender/FreeLinks.java": "4879411622ffdcc6ae84a0aa7a7849c5c660ed350a241e91b8964ec3799ea06e",
+    "CorpseProxyLab/source/cvprender/PatchBodyPlacement.java": "05279e2d6a781a95d5a5eb176b08437e21cf21131222428ae0468298bdcc32de",
+    "CorpseProxyLab/source/cvprender/PatchCamera.java": "3076ada2f3d7c7f191e6301ee4cc4fff6ac8d92a67eb1860b1426b7260776f28",
+    "CorpseProxyLab/source/cvprender/PatchCorpses.java": "5c121528aaf84bb3d65e63e6474a0c173f91ac23c20c1b50e6629a98ecd2fce0",
+    "CorpseProxyLab/source/cvprender/PatchFreeLinks.java": "fbd4d4f9b7e93671dd12a17fd645b8e0e129031f66a12ebf4edf2fafc50bf94e",
+    "CorpseProxyLab/source/cvprender/PatchPose.java": "56ba9f105f09ea1f5d3e60ec831bcbe012aa2101a712a6555796d2e522f66e2d",
+    "CorpseProxyLab/source/cvprender/PatchRopeVehicle.java": "bd38c868d04a6d1cd32f59aab2032018ee5ccd5d2cfa6b0df34dfcea6b0baa56",
+    "CorpseProxyLab/source/cvpworld/BodyPresentation.java": "db8bf2aef773f56881828a912ae64cf686b673a88b12ada93b81c3a4a5410348",
+    "CorpseProxyLab/source/cvpworld/BodySpacing.java": "880e2e6ce93c790e51f0b04589d94931288aa9640d8146e1acb7af9eaf34078b",
+    "CorpseProxyLab/source/cvpworld/BodyWearNative.java": "616b9c2e7e54329be1b0ffaf4709e3b0e0356bb71676df6c2ea3d1dac7562d32",
+    "CorpseProxyLab/source/cvpworld/DynamicCorpses.java": "ed9b76fb50e866b3ad23f9bbf621a9a15cdcb9786055bb0acc8d6c4b6dada877",
+    "CorpseProxyLab/source/cvpworld/EquipmentPersistence.java": "f0078e4b88677e5a01786672588d911b461b83ebcbd9af4dd68200a0c6d29d66",
+    "CorpseProxyLab/source/cvpworld/FreeRopeScene.java": "0f2237cdaaab8d8766bbb7fac7732a510945d4dd8ef12b9fe95984c8b564f8f5",
+    "CorpseProxyLab/source/cvpworld/ItemCodec.java": "c20cee1ed92dc91c8b229d7da1fd7ef46c6ac606b13b2ece3495bef273da9c9f",
+    "CorpseProxyLab/source/cvpworld/NetworkBridge.java": "bdea9e678b9ad905ca3df784e5c928ea103f699d6a5feffe19dfd432a38e3feb",
+    "CorpseProxyLab/source/cvpworld/OptionalViewpoint.java": "0fa40f69311a9dcb8d36cfd89557a608db16be8ae4560565de47db4d0b4d0da4",
+    "CorpseProxyLab/source/cvpworld/PatchBodyPresentation.java": "8462a8dc0814819b0d48ae6102f1722311ec0d02e697b0a8be715e6871c9f5cd",
+    "CorpseProxyLab/source/cvpworld/PatchChunkSaveAck.java": "dcd5857b9280b13f0ae11d15b38b75a841197645994868543850ad2370cb75f0",
+    "CorpseProxyLab/source/cvpworld/PatchFreeRopeFog.java": "3e35724fff7cdd1ffccd17216c76489b32cde33ab279e17c7876783f77d31b27",
+    "CorpseProxyLab/source/cvpworld/PatchFreeRopeScene.java": "f7178942f019e4b71592704f444fa7273a642d687caa1bff2944c56e76a14139",
+    "CorpseProxyLab/source/cvpworld/PatchPlayerSaveAck.java": "3b32d29668baaff5702f78065ad61ddd3c163d7230a85f38b1c4631657ea19f4",
+    "CorpseProxyLab/source/cvpworld/PatchRopeSnapshot.java": "cfef74d3a86aa8891a1b37344bed3c55ae9e2be03740bbf776f6579afe4d1408",
+    "CorpseProxyLab/source/cvpworld/PatchSkeletonRotting.java": "7773a983babf4cfb454c164b6631d8e36605261aa5c547cfb45f9f4d577adeb9",
+    "CorpseProxyLab/source/cvpworld/PatchSkeletonUpdate.java": "7cdd269dced7443ff36258ff967df518b7c84243c6094d15d2c098986ad6c285",
+    "CorpseProxyLab/source/cvpworld/PatchVehicleMotion.java": "51ac1ad2987e47a43860ccc0119154602d791ee6b612cdcc750eab9ab65eba9a",
+    "CorpseProxyLab/source/cvpworld/PatchVehicleRemoval.java": "9686caf04ec3118c7c600e26cc4bc6fdb45723b863f9e500f6e43df1428fa3ac",
+    "CorpseProxyLab/source/cvpworld/PoseTrace.java": "daa764eaf7851d8a8a19d1da54ca2f6286b91a2a8703274e4d7bc4698c3ac849",
+    "CorpseProxyLab/source/cvpworld/RopeGeometry.java": "0781d7f1e097dec406577d0473d3d9b77e4756e94d58fd768148d2e6f967904e",
+    "CorpseProxyLab/source/cvpworld/RopeShape.java": "48eba4606271caaee00d7ff2a9c7966028ba507bfa3cd9237b7a068dff8dcd61",
+    "CorpseProxyLab/source/cvpworld/SkeletonLifetime.java": "13f84ad4fd1a1cc7efa44b82b9828ee3663470ebf9a6a85486ec06345e30e625",
+    "CorpseProxyLab/source/cvpworld/SolverEnvironment.java": "df1445baacf61fc6750fd310706baa4a0e0a829b9f64ac49d71b92c9f5dd0ff7",
+    "CorpseProxyLab/source/cvpworld/StockRopeDraw.java": "b8a941e4c1498bb43996711be52e3669fe4007661dc830114b1f500367fff639",
+    "CorpseProxyLab/source/cvpworld/TowingSolver.java": "dd441218434feae1fa23d1f3ca3d9d6d7f352cc132e9c26f0e93e429a27d1af0",
+    "CorpseProxyLab/source/cvpworld/VehicleImpulseBridge.java": "09ea8b321f2164e52c5ca709462a286489a6b5b5cf80e33ed5c8a9539ff75405",
+    "CorpseProxyLab/source/cvpworld/VehicleMotion.java": "d86d80f1e09f357b4971b0fee04613a0a52b017c72c008d813eec30ad51248a9",
+    "CorpseProxyLab/source/cvpworld/VisualAttachment.java": "0e6607ed8d58ea4820dac01c3fec351ca1314234df4dee5f267469811ebabc7f",
+    "CorpseProxyLab/source/cvpworld/WorldBridge.java": "e72143d50636b29a683cbfbb9d9ec34a9bc690a66afb10241a4496c9d14be893",
+    "CorpseProxyLab/42/media/lua/shared/CVP_Abrasion.lua": "b7bf8fd22fca8228b0fded39e26cd110cba3f46163871e56563113c308b67dd8",
+    "CorpseProxyLab/42/media/lua/shared/CVP_Appearance.lua": "05b3211ef249859099ebd72efbbe0d871dc72b9c4620c5fa6dc7e69486399241",
+    "CorpseProxyLab/42/media/lua/shared/CVP_Blood.lua": "640af80d65c91157e6a9518ecf45949aa8926878642129370659be4a9504a029",
+    "CorpseProxyLab/42/media/lua/shared/CVP_BodySpread.lua": "346a6b804dd91aeedead0f6ed34cfa1e0aa6b182821d96a983b7707ba77171d8",
+    "CorpseProxyLab/42/media/lua/shared/CVP_BodyWear.lua": "33a89a40fdde818eb4ba1fc295ac9ecd35c7159571b7b3938fb68d4198604758",
+    "CorpseProxyLab/42/media/lua/shared/CVP_CarcassWear.lua": "e9a3ee58f5e36351f3e52e258b146c932069dbf791cea6bba715863bedc48b14",
+    "CorpseProxyLab/42/media/lua/shared/CVP_ClothingWear.lua": "1eb6ffd4622e69cc6bcfcf7d82c294e6c771e9b78d48fea5648c07114010336b",
+    "CorpseProxyLab/42/media/lua/shared/CVP_Connection.lua": "f44566020d3dfd29b0da69b64ec5228a138bd9b39259849460988fcaab45cc3e",
+    "CorpseProxyLab/42/media/lua/shared/CVP_Core.lua": "1d2e07e97d0bfb22d655274b7a6e6aaec93744e752269c10a27bf3eb3915276f",
+    "CorpseProxyLab/42/media/lua/shared/CVP_Diagnostics.lua": "4521a20215958dd470275ffcbb9ad9cc033535c72cc09de2c540e5383688a3fd",
+    "CorpseProxyLab/42/media/lua/shared/CVP_Effects.lua": "aa3cc3ecdbe3cc59becf56e5efeb0da75bcb5c4d44b666eeb942e19f73d47c34",
+    "CorpseProxyLab/42/media/lua/shared/CVP_Equipment.lua": "fcd9924501019b87984a5aca6c29866490cf777b98ebe5d9474e0ee9d26e765b",
+    "CorpseProxyLab/42/media/lua/shared/CVP_EquipmentData.lua": "2ced71016107d868799c5742908a62a702dec60cebc0742064ff38feefa7328c",
+    "CorpseProxyLab/42/media/lua/shared/CVP_Geometry.lua": "72b81a1d256cc4207b7ee232f9739c8e7ea9095b97a2aaca4a2eebb26dadde2d",
+    "CorpseProxyLab/42/media/lua/shared/CVP_GroundRope.lua": "751861ea051d68df7c2350d36d0a43e465db815b40a058a020142313f95489f4",
+    "CorpseProxyLab/42/media/lua/shared/CVP_GroupConstraints.lua": "96d91e9f165820def101cb742c4e44e3c053edc63646fca75a17a53eb2aac462",
+    "CorpseProxyLab/42/media/lua/shared/CVP_Horse.lua": "898e37d185d682aa84c29132820ccf36018288a8dd31c821dc97db3cda3a8c52",
+    "CorpseProxyLab/42/media/lua/shared/CVP_Legacy.lua": "02016d1106f20ade01a444183239d9b0d3cd1b98caad19b956c8c3114e48c0ba",
+    "CorpseProxyLab/42/media/lua/shared/CVP_LinkClocks.lua": "d3883f876ef949deae2198cf851effa906dd169227e94e3de3f9c1585c4ccff0",
+    "CorpseProxyLab/42/media/lua/shared/CVP_LinkGraph.lua": "4fe766a18d142fecf6adcfdd471155f2b3b3c1629f395369493db7fbd99d2e4d",
+    "CorpseProxyLab/42/media/lua/shared/CVP_LinkHost.lua": "8f59efd5e5c14d0a21f5888abbd94a7cec2fa476603b51277ded4201b860ac09",
+    "CorpseProxyLab/42/media/lua/shared/CVP_LinkJoints.lua": "306a75a9dcd77e6a5e5fdaafdbc36f6282b4bc62db6fc4904329fe3abaa8d9d4",
+    "CorpseProxyLab/42/media/lua/shared/CVP_LinkMessages.lua": "1d0015f107e48b7fe08d257f41c78b970453bdaf48be7361c7b73c69374b04c1",
+    "CorpseProxyLab/42/media/lua/shared/CVP_LinkObstacles.lua": "de2a1b6e1346c5000018eef5e8cc278efd2a01feed8682f51c205a86ad1a7236",
+    "CorpseProxyLab/42/media/lua/shared/CVP_LinkPresentation.lua": "14eb6eddba3dc31fde841ef5c4674c3529acb5506af089cab29a61828b94441a",
+    "CorpseProxyLab/42/media/lua/shared/CVP_LinkRewire.lua": "52aafc6b7847c49de18bdfeab9c8d875b5761a024ad150f830bf791fffe89be9",
+    "CorpseProxyLab/42/media/lua/shared/CVP_LinkRuntime.lua": "b61414500a0004ff89f2a32f7c2ab033b675d259c16f367945533129260fbbca",
+    "CorpseProxyLab/42/media/lua/shared/CVP_LinkService.lua": "024bca4bc314078dbffe2865a4c72ce3015b73ea2405c0d036273fdab72c141d",
+    "CorpseProxyLab/42/media/lua/shared/CVP_LinkSimulation.lua": "64b92303ae44f569f4e4a1c6bb4b771e1904a30ffff943658af991dcc8eeb2d4",
+    "CorpseProxyLab/42/media/lua/shared/CVP_LinkWire.lua": "a79262835ad6c924e08152cc7a45caf41a9331d542abd0aee241a680a3fdb645",
+    "CorpseProxyLab/42/media/lua/shared/CVP_Load.lua": "3ee9d30bbb3ade123812fc24429445c70b4d5ce3d403e82f8cb8265497dd4790",
+    "CorpseProxyLab/42/media/lua/shared/CVP_LoadPrediction.lua": "4a59b5261dac92651cf4a4ef3453ff87a16b9646e7ec09c0292c0cb94a8f620d",
+    "CorpseProxyLab/42/media/lua/shared/CVP_LoadWindow.lua": "8ea8559fcf5e257f87c6dfa6638bff238a109263a0e1901fc4ab9b3ea5bce5b4",
+    "CorpseProxyLab/42/media/lua/shared/CVP_Plow.lua": "249c93533da7f2bfc98b782fe789d0fce01242855b5824ef77223c900b17610e",
+    "CorpseProxyLab/42/media/lua/shared/CVP_Protocol.lua": "52b89ade0eff48c41e8b2c30127334d49b28dda1f953674fb3feb48412536c45",
+    "CorpseProxyLab/42/media/lua/shared/CVP_Rewire.lua": "0d392a6aa7be8c3a0034f2dca70bc875c8fa01c150a3c6e1598406f2bcbef14f",
+    "CorpseProxyLab/42/media/lua/shared/CVP_Rope.lua": "81fee8a4387f60ca1711a9e47484cecd3bc56f0071f294d73fb0f008ca73231a",
+    "CorpseProxyLab/42/media/lua/shared/CVP_SaveJobs.lua": "223df409c605f59ade1820bb8f4e45db5f5aa45a58934b2e965222f6f2b9c129",
+    "CorpseProxyLab/42/media/lua/shared/CVP_Settings.lua": "9a82df7adb3d54ac09ee3448e0a2e1a8ce5c3b0abe1000384b3fcb9e07367641",
+    "CorpseProxyLab/42/media/lua/shared/CVP_SimulationClock.lua": "81486814d2ae8dd8b6eb03d304017e002b0aa2e708b6cd36c540ecd6f921925a",
+    "CorpseProxyLab/42/media/lua/shared/CVP_SimulationFrame.lua": "80e749a0fada027234d59a1f7451949f3f7a9d81619c3c19a17d01218e3afc5d",
+    "CorpseProxyLab/42/media/lua/shared/CVP_VehicleTrajectory.lua": "72c057b8543cd8106bb3be5ccce17b059098ac7d7fca7cb8241410ee0e4cff32",
+    "CorpseProxyLab/42/media/lua/shared/CVP_World.lua": "52279f17f7387b153901c2ebd4e9e9c7dd0b34e07a2bfc76338b03ff1d245ef5"
+  },
+  "classes": [
+    {
+      "entry": "cvprender/BodyPlacement.class",
+      "sha256": "9eee68d17c6774ea32348d4874641b6335abd3aa9ecf15003db8a895fc6e8cb0",
+      "bytes": 1429,
+      "matches": true
+    },
+    {
+      "entry": "cvprender/Bridge.class",
+      "sha256": "cd8a0a2b5e47b5ad9342c65ab2b22af521cb88ea42641dcf8bdb13567af534fb",
+      "bytes": 9715,
+      "matches": true
+    },
+    {
+      "entry": "cvprender/FreeLinks.class",
+      "sha256": "32ff996bdc8141ab28cbdc269a0b673cd47d1018be6f11d9af0221f3bd3f4425",
+      "bytes": 6187,
+      "matches": true
+    },
+    {
+      "entry": "cvprender/PatchBodyPlacement$Draw.class",
+      "sha256": "fb5ef9959bbf9ebfcb97179598214a49b5a9173b9bf61c112f7a4d89a10f5fd7",
+      "bytes": 981,
+      "matches": true
+    },
+    {
+      "entry": "cvprender/PatchBodyPlacement$Sphere.class",
+      "sha256": "908fa950a1ea91bf6d5bb0d007becd51605de71316dda04b33495c46368c8812",
+      "bytes": 1043,
+      "matches": true
+    },
+    {
+      "entry": "cvprender/PatchBodyPlacement.class",
+      "sha256": "5710bbc338fddb8bbba1e7176e12c5e41576808feb0ab1073774053da7dd55fd",
+      "bytes": 381,
+      "matches": true
+    },
+    {
+      "entry": "cvprender/PatchCamera.class",
+      "sha256": "4fe1732222e3e6bd1bae63379985ccf411ec89d68df89f53145cbdca4371ac9e",
+      "bytes": 840,
+      "matches": true
+    },
+    {
+      "entry": "cvprender/PatchCorpses.class",
+      "sha256": "3218f53efd5754fd8f436c365b0c9a262ac615815e0b12c843c5933296ece2a8",
+      "bytes": 617,
+      "matches": true
+    },
+    {
+      "entry": "cvprender/PatchFreeLinks.class",
+      "sha256": "83211f7085ac4d3e4e0bb6d4cc2fad7e973a6deb2d25d8be00eb71378ffa9d31",
+      "bytes": 922,
+      "matches": true
+    },
+    {
+      "entry": "cvprender/PatchPose.class",
+      "sha256": "e9b0ad7bedf82885a12e0839f73389180e2097f3d525644d579bef0a22a52ba3",
+      "bytes": 1180,
+      "matches": true
+    },
+    {
+      "entry": "cvprender/PatchRopeVehicle.class",
+      "sha256": "08dc0f7ccc4997623b2c761c26acc4ca922f368f935681b843a473d8991e1ed9",
+      "bytes": 961,
+      "matches": true
+    },
+    {
+      "entry": "cvpworld/BodyPresentation.class",
+      "sha256": "87587585d56f1bc5a6645670eb11b4206e33e31d9fd5c6c5f2aa3111b9fb7d14",
+      "bytes": 3853,
+      "matches": true
+    },
+    {
+      "entry": "cvpworld/BodySpacing$Row.class",
+      "sha256": "0a4ff911d191b01b0ed34ede1c7bdbc62d54a3f2f74b9c8a3bb257afbbaa73cb",
+      "bytes": 1703,
+      "matches": true
+    },
+    {
+      "entry": "cvpworld/BodySpacing$State.class",
+      "sha256": "95b175da71f9982ea70c4774cd402a7bdede9605b48351fd8db027e910060056",
+      "bytes": 908,
+      "matches": true
+    },
+    {
+      "entry": "cvpworld/BodySpacing.class",
+      "sha256": "392904c2db89ef56a9a086abc69626bcf4ff737942b3d80e91e3f92a9d098e16",
+      "bytes": 4883,
+      "matches": true
+    },
+    {
+      "entry": "cvpworld/BodyWearNative.class",
+      "sha256": "3813b96d879dd1558ee6a1e342682e57700456b1f3101a3647b155a08d3ae3ef",
+      "bytes": 2549,
+      "matches": true
+    },
+    {
+      "entry": "cvpworld/DynamicCorpses.class",
+      "sha256": "384a5b73454081f51fa84bbcf59119f927ee475f6005319927317f3459257ddb",
+      "bytes": 2134,
+      "matches": true
+    },
+    {
+      "entry": "cvpworld/EquipmentPersistence$Checkpoint.class",
+      "sha256": "595ba5ba20838edaff4807a0478cbb31a681c967e773edd65a8ceb5bc052ddc0",
+      "bytes": 307,
+      "matches": true
+    },
+    {
+      "entry": "cvpworld/EquipmentPersistence$CorruptLedger.class",
+      "sha256": "75a0c98c8d3486e43b6cd0b6da4f6de03bc4458b479335553daccf41a3ae63c3",
+      "bytes": 360,
+      "matches": true
+    },
+    {
+      "entry": "cvpworld/EquipmentPersistence$Probe.class",
+      "sha256": "4265e1f25ca99f7ad6011d6328c2a362ddf90d8da58b0caaf4ed1ec8e2850e18",
+      "bytes": 299,
+      "matches": true
+    },
+    {
+      "entry": "cvpworld/EquipmentPersistence$Replace.class",
+      "sha256": "2d823a68f4dc79ce28518000b233339beb8c125d57f2c8c0fb3bb234a913a070",
+      "bytes": 342,
+      "matches": true
+    },
+    {
+      "entry": "cvpworld/EquipmentPersistence$SaveJob.class",
+      "sha256": "cc792e908b4de066391a0c58848abf5110d6b7a44c052445cbce5d1f19a071fa",
+      "bytes": 1087,
+      "matches": true
+    },
+    {
+      "entry": "cvpworld/EquipmentPersistence$UnsupportedLedger.class",
+      "sha256": "fb60c23dc8a7b7b52818e3787698e063de2e7b098fc03f70437e8290171c546d",
+      "bytes": 368,
+      "matches": true
+    },
+    {
+      "entry": "cvpworld/EquipmentPersistence.class",
+      "sha256": "ad9d288bf7da69942ba5f9d5829a88426b8722fc5ba22ac3a1ee866436d9f4ec",
+      "bytes": 37664,
+      "matches": true
+    },
+    {
+      "entry": "cvpworld/FreeRopeScene$Drawer.class",
+      "sha256": "cdbf767b6e89d9910cbfd160d98deff7d61aeff515df4ce8e6ce3bf0194d15c2",
+      "bytes": 5268,
+      "matches": true
+    },
+    {
+      "entry": "cvpworld/FreeRopeScene$Native.class",
+      "sha256": "57c853ac225c1cf64da6741b2eae8a8dfabd2e4eb0570386deb03ba5073f72ce",
+      "bytes": 849,
+      "matches": true
+    },
+    {
+      "entry": "cvpworld/FreeRopeScene$Snapshot.class",
+      "sha256": "46568c630e158a6d3e6a6287d09b663f41cd51cc38790682fa52d2431ec56979",
+      "bytes": 1645,
+      "matches": true
+    },
+    {
+      "entry": "cvpworld/FreeRopeScene$StockCalibration.class",
+      "sha256": "4f35b370fdd64213c48bfe94adaa4ff7f8c112c1d8ca32a4ea5b50793ba01c41",
+      "bytes": 434,
+      "matches": true
+    },
+    {
+      "entry": "cvpworld/FreeRopeScene$StockCamera.class",
+      "sha256": "22bf45ff63c1e21a4119a28b1d53258471b365a1803a1dde1ba7ba86f5ba0180",
+      "bytes": 880,
+      "matches": true
+    },
+    {
+      "entry": "cvpworld/FreeRopeScene$StockFrame.class",
+      "sha256": "85f68be89f8b18ece971e005ec0f935804ba40e64589ad90fd0db414f15063df",
+      "bytes": 1771,
+      "matches": true
+    },
+    {
+      "entry": "cvpworld/FreeRopeScene$VehicleAnchor.class",
+      "sha256": "be0fda25bfdd98d6ff5a7f512ac41ef16e99bfffe70b4758ca2b49590112f725",
+      "bytes": 818,
+      "matches": true
+    },
+    {
+      "entry": "cvpworld/FreeRopeScene$VehicleEnd.class",
+      "sha256": "a38f8fb7b5ba2e176ae0adf4e71ce2704e34038eaa5f646cd8d77d8140382f09",
+      "bytes": 1735,
+      "matches": true
+    },
+    {
+      "entry": "cvpworld/FreeRopeScene.class",
+      "sha256": "01f28112f57a57c8d947b11d687ad8296a49843594d74e4dbd1978083eb2225a",
+      "bytes": 23964,
+      "matches": true
+    },
+    {
+      "entry": "cvpworld/ItemCodec.class",
+      "sha256": "95c13083612719b74c8abd9c58ee44a798b53fbc30739d92abbe233e9556d4f2",
+      "bytes": 6480,
+      "matches": true
+    },
+    {
+      "entry": "cvpworld/NetworkBridge.class",
+      "sha256": "1e62692bd37936ce78a4a652ecd7d03dbbf8934447e21c6963b79e4da9ff86ac",
+      "bytes": 6231,
+      "matches": true
+    },
+    {
+      "entry": "cvpworld/OptionalViewpoint.class",
+      "sha256": "ebfab970a37d33c15bd6ef92f99d28cca0d3c35ba9dbfc6a75a5aee14f1713c4",
+      "bytes": 2453,
+      "matches": true
+    },
+    {
+      "entry": "cvpworld/PatchBodyPresentation$Draw.class",
+      "sha256": "1f26f91cb4fd604ff47224073723901ae0dbf4ea7e7e0e08b46e8a7e5301f9dc",
+      "bytes": 1556,
+      "matches": true
+    },
+    {
+      "entry": "cvpworld/PatchBodyPresentation$Mouse.class",
+      "sha256": "a31705a4b12358062e25d3ff9945184efc2cc412049b84abb49b923dd22982fd",
+      "bytes": 1531,
+      "matches": true
+    },
+    {
+      "entry": "cvpworld/PatchBodyPresentation$Shadow.class",
+      "sha256": "946c73eb4228e912bf962b8465629d740a60b5c7bc37c7fced02222dc8a86387",
+      "bytes": 1193,
+      "matches": true
+    },
+    {
+      "entry": "cvpworld/PatchBodyPresentation$ShadowScope.class",
+      "sha256": "08f75895a8d998d5e8a6e87236c343eb84e5880dbc817195d52401fe75dc0059",
+      "bytes": 1178,
+      "matches": true
+    },
+    {
+      "entry": "cvpworld/PatchBodyPresentation.class",
+      "sha256": "c86b93bdddda3955e638ea5ccd64188046c88d47cc25013a2d86714cb6327b32",
+      "bytes": 522,
+      "matches": true
+    },
+    {
+      "entry": "cvpworld/PatchChunkSaveAck.class",
+      "sha256": "4d4c6c9d97e79cecf9ce8590ae31dd632f07e68370b7294ed5d01c71be47f3a3",
+      "bytes": 841,
+      "matches": true
+    },
+    {
+      "entry": "cvpworld/PatchFreeRopeFog.class",
+      "sha256": "f49f9aadb2f7b4fe533948f5c485739b79f7860667971e53a7ab16fd666e9b38",
+      "bytes": 963,
+      "matches": true
+    },
+    {
+      "entry": "cvpworld/PatchFreeRopeScene.class",
+      "sha256": "8c53e196c312fb56716a9b3217ba4e21ed0e68e574e4874280a3ad9ec565076d",
+      "bytes": 1093,
+      "matches": true
+    },
+    {
+      "entry": "cvpworld/PatchPlayerSaveAck.class",
+      "sha256": "fe8be8a45cb03d4dfc7ad474e7ca2bd7eb8633c79741a382af861330fc529b14",
+      "bytes": 860,
+      "matches": true
+    },
+    {
+      "entry": "cvpworld/PatchRopeSnapshot.class",
+      "sha256": "1bb44ecf045e9a60c19258bb5f418db971e0da509b7f64aae795939bf7cc23bc",
+      "bytes": 878,
+      "matches": true
+    },
+    {
+      "entry": "cvpworld/PatchSkeletonRotting.class",
+      "sha256": "d1f553fd8fd9b897050b1610f50c09ba6e4da71fd5f0346bd63b566aec33eb4c",
+      "bytes": 1001,
+      "matches": true
+    },
+    {
+      "entry": "cvpworld/PatchSkeletonUpdate.class",
+      "sha256": "ea9f7b2b2d9c6835e94f5ca2c1f58c77d92272272ee1b732085acaff9a8c3378",
+      "bytes": 879,
+      "matches": true
+    },
+    {
+      "entry": "cvpworld/PatchVehicleMotion.class",
+      "sha256": "173eee4725415eb41473c6a661b36e4f631097ce462b5750e0e455e69a347318",
+      "bytes": 1043,
+      "matches": true
+    },
+    {
+      "entry": "cvpworld/PatchVehicleRemoval.class",
+      "sha256": "bc02ddb421ccbb54313edbbe2bab77a9214ab76966e46a5073588b419aa64c80",
+      "bytes": 1000,
+      "matches": true
+    },
+    {
+      "entry": "cvpworld/PoseTrace$Sample.class",
+      "sha256": "f4aa821adbca9b4a117660c6f74679db73ca38e07c1df5fa84dc3524dd48f48a",
+      "bytes": 635,
+      "matches": true
+    },
+    {
+      "entry": "cvpworld/PoseTrace.class",
+      "sha256": "b245efc568416bef67a66f32ec034819cb2320490865a767aafcdfac4837d1d4",
+      "bytes": 1358,
+      "matches": true
+    },
+    {
+      "entry": "cvpworld/RopeGeometry.class",
+      "sha256": "b388fe033b22a5702271e6c6f5ffb6785658f08f0a1349402b0adbfc4d11476a",
+      "bytes": 2416,
+      "matches": true
+    },
+    {
+      "entry": "cvpworld/RopeShape$Point.class",
+      "sha256": "6806382d66294647a2924e30771831da6f98e2465c384b75a40879bd5f5be781",
+      "bytes": 448,
+      "matches": true
+    },
+    {
+      "entry": "cvpworld/RopeShape$State.class",
+      "sha256": "7cb09dc9bce3ac40b5be4521660fe5a3f2073cc251bad34552204a5406bebb23",
+      "bytes": 595,
+      "matches": true
+    },
+    {
+      "entry": "cvpworld/RopeShape.class",
+      "sha256": "1ba5b8bcf6add96c2c7ee9bb043aab80a193c7c8e6be529fddc0be43a0e9b04b",
+      "bytes": 7391,
+      "matches": true
+    },
+    {
+      "entry": "cvpworld/SkeletonLifetime$GraphClock.class",
+      "sha256": "ddbfe142664249eccf7ef12c45e434c3fdc111313352370e6efc2313d4ff95bc",
+      "bytes": 1882,
+      "matches": true
+    },
+    {
+      "entry": "cvpworld/SkeletonLifetime.class",
+      "sha256": "89b628d4bd362a235586151a97a4042cda698beac35066f40537e2ee0e379091",
+      "bytes": 9422,
+      "matches": true
+    },
+    {
+      "entry": "cvpworld/SolverEnvironment$1.class",
+      "sha256": "017b2c7cbd977c0d340f5907d30902b1b7713a2a592aea5e61f4b95767ccf843",
+      "bytes": 1667,
+      "matches": true
+    },
+    {
+      "entry": "cvpworld/SolverEnvironment$Key.class",
+      "sha256": "d7728aaadf8e386d541d5e283a51158dfc5ae6bdb98de452801df08fbf991c9f",
+      "bytes": 1407,
+      "matches": true
+    },
+    {
+      "entry": "cvpworld/SolverEnvironment$Tile.class",
+      "sha256": "e4b3e366dd2d416cfa60908cc5c4ecb289def6268e1d8d834e3a92ea1668db76",
+      "bytes": 937,
+      "matches": true
+    },
+    {
+      "entry": "cvpworld/SolverEnvironment$World.class",
+      "sha256": "19b0fced607f66219e2f5939243cbdff6f131a8e081ad5a00b560cb7a166af4e",
+      "bytes": 274,
+      "matches": true
+    },
+    {
+      "entry": "cvpworld/SolverEnvironment.class",
+      "sha256": "3ab2297b8a01ce2d93b79581da51aa8c89ccc5011bd8c67f2ecb8a987de9c1c1",
+      "bytes": 5857,
+      "matches": true
+    },
+    {
+      "entry": "cvpworld/StockRopeDraw.class",
+      "sha256": "e18f4ec49b7d61d0b1006b8f90c5be8045fd2789ed2bd73ba1dba306dbad1482",
+      "bytes": 4154,
+      "matches": true
+    },
+    {
+      "entry": "cvpworld/TowingSolver$Body.class",
+      "sha256": "c455d121d7c632723453b76b16f562b959a81175d30b41bdab19842779d1495d",
+      "bytes": 6338,
+      "matches": true
+    },
+    {
+      "entry": "cvpworld/TowingSolver$Pose.class",
+      "sha256": "6057d633a41e7511150d003fa6bb99b9ca74ac8cb36824ad577f0fe4b3ba9aba",
+      "bytes": 1501,
+      "matches": true
+    },
+    {
+      "entry": "cvpworld/TowingSolver$State.class",
+      "sha256": "11f0f7cde1c3f1a0c6067250dec5d8177085c8fcf9f902ba518fad000f6c31c3",
+      "bytes": 2495,
+      "matches": true
+    },
+    {
+      "entry": "cvpworld/TowingSolver.class",
+      "sha256": "4f68f1c7f54f0cf9d61835e49792db70e31aa0f810e3b0680fb0b4ec8c4958e8",
+      "bytes": 21122,
+      "matches": true
+    },
+    {
+      "entry": "cvpworld/VehicleImpulseBridge.class",
+      "sha256": "df236c77d765890fb715d217ebf40ba1ada9c3944bdfcda365dcb17cffa4d04f",
+      "bytes": 3174,
+      "matches": true
+    },
+    {
+      "entry": "cvpworld/VehicleMotion.class",
+      "sha256": "24484190d3dab3d5b02661bf56f9241477146b4a4a49eaece2060f29e6b5176e",
+      "bytes": 4740,
+      "matches": true
+    },
+    {
+      "entry": "cvpworld/VisualAttachment$Held.class",
+      "sha256": "90c0735e386237d1292fbed98cbb16fcb5266e5fb5e2f0b912f360d7e3c67d27",
+      "bytes": 1386,
+      "matches": true
+    },
+    {
+      "entry": "cvpworld/VisualAttachment.class",
+      "sha256": "9172221c9ec759f321cb7e67789214eb61b99fdc462d667633f60e59c02c18ec",
+      "bytes": 5068,
+      "matches": true
+    },
+    {
+      "entry": "cvpworld/WorldBridge$ReadPass.class",
+      "sha256": "6e2af3dc14244c74ec274c25335b42ba961dd1938cb9d6f295ac4f84cff072f8",
+      "bytes": 1517,
+      "matches": true
+    },
+    {
+      "entry": "cvpworld/WorldBridge.class",
+      "sha256": "ac674a69fed9d617ef84dd34b599acabfe10c20c14d81af3c97c65d5c6dd4c6a",
+      "bytes": 8312,
+      "matches": true
+    }
+  ],
+  "limits": [
+    "Compares the completed local production build to the locally rebuilt shipped-path artifact; does not certify another downloaded archive.",
+    "Archive timestamps are not the bytecode proof; the observed archive SHA is recorded separately."
+  ]
+}

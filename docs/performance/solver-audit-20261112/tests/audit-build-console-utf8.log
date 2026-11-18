@@ -1,0 +1,19 @@
+PASS ValidateLua
+PASS ValidateWorld
+PASS ValidateRopeScene
+PASS ValidateNetwork
+PASS ValidateVehicleAuthority
+PASS ValidateFreeRopeScene
+PASS ValidateSkeletonLifetime
+PASS ValidateBodyWear
+PASS ValidateTowingSolver
+PASS ValidateRopeShape
+PASS ValidateEquipmentBridge
+PASS ValidateViewpoint
+PASS ValidateRopeShaders
+PASS ValidateOptionalViewpoint-absent
+PASS ValidateOptionalViewpoint-present
+PASS ValidateDynamicCorpses-disabled
+PASS ValidateDynamicCorpses-absent
+PASS ValidateDynamicCorpses-present
+OK. Logs: <REPO>\local\runs\build-20261112-014526-420

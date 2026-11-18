@@ -1,0 +1,20 @@
+java.exe : WARNING: A terminally deprecated method in sun.misc.Unsafe has been called
+At <REPO>\tools\Project.ps1:138 char:5
++     & $exe @arguments *> $log
++     ~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (WARNING: A term...has been called:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+WARNING: sun.misc.Unsafe::objectFieldOffset has been called by org.joml.MemUtil$MemUtilUnsafe (file:/<GAME>/projectzomboid.jar)
+WARNING: Please consider reporting this to the maintainers of class org.joml.MemUtil$MemUtilUnsafe
+WARNING: sun.misc.Unsafe::objectFieldOffset will be removed in a future release
+PASS installed PZ static shader: unchanged projection, native terrain depth, mesh clearance, old occlusion reproduced, pan and both tile scales
+[CVP-FreeRopeScene] retry in 5 s: java.lang.ClassCastException: class java.lang.Integer cannot be cast to class org.jom
+l.Matrix4f (java.lang.Integer is in module java.base of loader 'bootstrap'; org.joml.Matrix4f is in unnamed module of l
+oader 'app')
+java.lang.ClassCastException: class java.lang.Integer cannot be cast to class org.joml.Matrix4f (java.lang.Integer is i
+n module java.base of loader 'bootstrap'; org.joml.Matrix4f is in unnamed module of loader 'app')
+	at cvprender.Bridge.ropeVehicle(Bridge.java:38)
+	at cvpworld.ValidateRopeShaders.viewpoint(ValidateRopeShaders.java:173)
+	at cvpworld.ValidateRopeShaders.main(ValidateRopeShaders.java:223)
+PASS 144 Viewpoint shader cases: attached/free rope and chain, signed relief, slopes, mesh clearance, endpoint stability, early exits and recovery

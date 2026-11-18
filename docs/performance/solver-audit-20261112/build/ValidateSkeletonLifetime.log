@@ -1,0 +1,4 @@
+PASS graph skeleton clocks: legacy migration, unloaded detach/reattach, exact elapsed time, fresh bodies and new epochs
+PASS skeleton clock: pause, native serialization, unload, detach, reattach, expiry
+PASS native skeleton hooks: engine expiry comparison, death date restored, MP client ignored
+PASS native graph clock bootstrap before Lua, atomic clock validation, retirement and world isolation

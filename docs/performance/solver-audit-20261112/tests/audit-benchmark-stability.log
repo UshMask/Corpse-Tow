@@ -1,0 +1,13 @@
+[solver_bench] JVM fork 1/4
+[solver_bench] JVM fork 2/4
+[solver_bench] JVM fork 3/4
+[solver_bench] JVM fork 4/4
+[solver_bench] chain32-weave solve old/new paired ratio median=1.115796200783329 checksums=match
+[solver_bench] chain32-weave solvePersistent old/new paired ratio median=1.1605344733994318 checksums=match
+[solver_bench] chain4 solve old/new paired ratio median=1.1567686745834096 checksums=match
+[solver_bench] chain4 solvePersistent old/new paired ratio median=1.1506034726153127 checksums=match
+[solver_bench] chain8 solve old/new paired ratio median=1.340026912414378 checksums=match
+[solver_bench] chain8 solvePersistent old/new paired ratio median=1.3637597308276743 checksums=match
+[solver_bench] four-groups-chain32 solve old/new paired ratio median=1.1583657314672817 checksums=match
+[solver_bench] four-groups-chain32 solvePersistent old/new paired ratio median=1.157246781000513 checksums=match
+[solver_bench] PASS; report: local/runs/solver-bench-stability/report.json

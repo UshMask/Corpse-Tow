@@ -1,0 +1,15 @@
+PASS native pooled bone identity/values, repeated moves, exception restoration and null pose
+PASS grouped pose reads, shared square index, reorder/replacement/unload and live destination validation
+PASS exact world angles and native atlas-key invalidation including direction, wrap and rollback
+PASS native item codec: three materials, ID/name/condition/favorite/custom weight/nested modData, GlobalModData table/file roundtrip, malformed/oversized data and role guards
+Scope: supplied native load targets; no script-factory bootstrap, live ownership transfer, global_mod_data.bin transaction or crash recovery
+PASS native free-end graph: store-3 snapshot, exact endpoint coordinates/holder/length/equipment, atomic edit failure
+[CVP] Damaged towing data reset; original saved to <HOME>\AppData\Local\Temp\cvp-ledger-recovery-13229057222474789952\CVPEquipment.bin.recovery-4ce68aa6-ddba-4f3e-b7cd-b1e6eef43bc0.bak
+PASS recovery: byte-exact backup, failed replace preserves source, durable reset marker, unsupported version remains untouched
+PASS native synchronous MainThread queue serviced during SP checkpoint wait; server guard does not pump it
+PASS native chunk checksum: completed mismatch/missing file invalidates cache, pending timeout preserves it, matching retry acknowledges file
+PASS equipment ledger: native table roundtrip, atomic replacement failure preserves prior file, checksum/truncation/value rejection; actor generations/retry; completion-before-readback race and unknown timeout
+Scope: isolated file and completion fixtures; native player/chunk queue barriers require live runtime validation
+PASS asynchronous persistence: immutable bytes, deferred native ack/readback, main-thread acceptance, duplicate poll, write failure, world guard
+PASS native skin blood/dirt persistence
+PASS native clothing condition/hole/identity/modData persistence

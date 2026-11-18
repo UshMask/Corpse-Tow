@@ -33,8 +33,8 @@ import se.krka.kahlua.vm.*;
  */
 public class ValidateSolverEquivalence {
     static final double TOLERANCE=1e-13;
-    static final String BASELINE_JAVA_SHA256="DC04B22E89B820BB18CBE0C261FF21CA4EEC1BA7E7A317616B7FB63F0D24EA87";
-    static final String BASELINE_LUA_SHA256="7E3E20D9686912C4D5AF5781F3C31B7313FC60D17196DA4F51D1929BF68E571F";
+    static final String BASELINE_JAVA_SHA256="A957246BDB14361A878EA96E23AFCF2C45359A646E522700BF294571F006476F";
+    static final String BASELINE_LUA_SHA256="6A77D2484C93D003E09351B654955F8602EC7620B1E31B1484354AF87B0B348E";
     static final Path BASELINE_JAVA=Path.of("tests/fixtures/solver_baseline/TowingSolver.java");
     static final Path BASELINE_LUA=Path.of("tests/fixtures/solver_baseline/CVP_GroupConstraints.lua");
     static final Path CURRENT_JAVA=Path.of("CorpseProxyLab/source/cvpworld/TowingSolver.java");
@@ -62,6 +62,7 @@ public class ValidateSolverEquivalence {
         "obstacle-wall-32","obstacle-unloaded-32","obstacle-solid-32","obstacle-tree-32",
         "chains-1x32","chains-2x32","chains-4x32",
         "unload-replacement-32","topology-change-32","backend-switch-32","rollback-32",
+        "geometry-4","inputs-4",
     };
     // Java-only contract scenarios: the Lua module has no native state object to release/roll back.
     static final Set<String> LUA_SKIP=Set.of("reset-4","backend-switch-32","rollback-32");
@@ -150,6 +151,12 @@ public class ValidateSolverEquivalence {
         verifyHeader();
         initVm();
         backendSmoke();
+        // Test-only focused entry point for isolated semantic negative controls. The
+        // normal runner never sets this; header/backend checks still run first.
+        String only=System.getProperty("cvp.onlyOracle","");
+        if(only.equals("java")){javaVsJava();return;}
+        if(only.equals("lua")){luaVsLua();return;}
+        if(!only.isEmpty())throw new AssertionError("unknown focused oracle: "+only);
         long mark=System.nanoTime();
         javaVsJava();
         System.out.println("PASS oracle 1/3 java-vs-java: old frozen Java vs live Java ("+seconds(mark)+")");
@@ -172,8 +179,8 @@ public class ValidateSolverEquivalence {
     // ---------------------------------------------------------------- header / backend proof
 
     static void verifyHeader() throws Exception {
-        String baselineJava=sha256(BASELINE_JAVA);
-        String baselineLua=sha256(BASELINE_LUA);
+        String baselineJava=canonicalSha256(BASELINE_JAVA);
+        String baselineLua=canonicalSha256(BASELINE_LUA);
         if(!baselineJava.equals(BASELINE_JAVA_SHA256))
             throw new AssertionError("frozen baseline Java changed: "+baselineJava+" != "+BASELINE_JAVA_SHA256);
         if(!baselineLua.equals(BASELINE_LUA_SHA256))
@@ -185,10 +192,24 @@ public class ValidateSolverEquivalence {
         Class<?> baseline=loadClass("cvpworld.TowingSolverBaseline","frozen Java baseline did not compile/load beside the live solver");
         byte[] compiledSolver=resource("cvpworld/TowingSolver.class");
         byte[] jarSolver;
+        boolean allClassesMatch=true;
+        Set<String> expectedClasses=new TreeSet<>();collectSolverClasses(live,expectedClasses);
+        Set<String> shippedClasses=new TreeSet<>();
+        Set<String> mismatchedClasses=new TreeSet<>();
         try(JarFile jar=new JarFile(JAR.toFile())) {
             JarEntry entry=jar.getJarEntry("cvpworld/TowingSolver.class");
             if(entry==null) throw new AssertionError("shipped JAR does not contain cvpworld/TowingSolver.class: "+JAR.toAbsolutePath());
             jarSolver=readAll(jar.getInputStream(entry));
+            for(var entries=jar.entries();entries.hasMoreElements();){
+                String name=entries.nextElement().getName();
+                if(name.matches("cvpworld/TowingSolver(?:\\$.*)?\\.class"))shippedClasses.add(name);
+            }
+            for(String name:shippedClasses)if(!expectedClasses.contains(name))mismatchedClasses.add(name);
+            for(String name:expectedClasses){
+                JarEntry part=jar.getJarEntry(name);
+                if(part==null||!Arrays.equals(resource(name),readAll(jar.getInputStream(part))))mismatchedClasses.add(name);
+            }
+            allClassesMatch=mismatchedClasses.isEmpty();
         }
         String compiledSha=sha256(compiledSolver);
         String jarSha=sha256(jarSolver);
@@ -198,9 +219,12 @@ public class ValidateSolverEquivalence {
         System.out.println("=== SOLVER EQUIVALENCE HEADER ===");
         System.out.println("oracle=three-way (old-java vs new-java, old-lua vs new-lua, new-java vs new-lua)");
         System.out.println("baselineJavaPath="+BASELINE_JAVA.toAbsolutePath());
+        System.out.println("baselineHashNormalization=utf8-crlf-to-lf");
         System.out.println("baselineJavaSha256="+baselineJava);
+        System.out.println("baselineJavaRawSha256="+sha256(BASELINE_JAVA));
         System.out.println("baselineLuaPath="+BASELINE_LUA.toAbsolutePath());
         System.out.println("baselineLuaSha256="+baselineLua);
+        System.out.println("baselineLuaRawSha256="+sha256(BASELINE_LUA));
         System.out.println("currentJavaPath="+CURRENT_JAVA.toAbsolutePath());
         System.out.println("currentJavaSha256="+currentJavaSha);
         System.out.println("currentLuaPath="+CURRENT_LUA.toAbsolutePath());
@@ -209,7 +233,10 @@ public class ValidateSolverEquivalence {
         System.out.println("jarFileSha256="+jarFileSha);
         System.out.println("jarTowingSolverClassSha256="+jarSha);
         System.out.println("compiledTowingSolverClassSha256="+compiledSha);
-        System.out.println("jarClassMatchesCompiled="+(jarSha.equals(compiledSha)));
+        System.out.println("jarClassMatchesCompiled="+allClassesMatch);
+        System.out.println("jarSolverClassCount="+expectedClasses.size());
+        System.out.println("jarSolverClasses="+String.join(",",expectedClasses));
+        System.out.println("jarMismatchedSolverClasses="+String.join(",",mismatchedClasses));
         System.out.println("jarClassCheck="+(STRICT_JAR?"enforced":"disabled-for-harness-development"));
         System.out.println("nativeClass=cvpworld.TowingSolver");
         System.out.println("nativeClassSource="+codeSource(live));
@@ -219,10 +246,14 @@ public class ValidateSolverEquivalence {
         System.out.println("backend=in-process-java-native (+ kahlua Lua oracle in same JVM)");
         System.out.println("luaVm=kahlua "+KahluaThread.class.getPackage().getImplementationVersion());
         System.out.println("=== END SOLVER EQUIVALENCE HEADER ===");
-        if(STRICT_JAR&&!jarSha.equals(compiledSha))
-            throw new AssertionError("stale shipped JAR: cvpworld/TowingSolver.class in "+JAR.toAbsolutePath()
-                +" does not match the source compiled for this oracle ("+jarSha+" != "+compiledSha
-                +"); run tools/Project.ps1 -Action build and retry");
+        if(STRICT_JAR&&!allClassesMatch)
+            throw new AssertionError("stale shipped JAR: solver class entries "+mismatchedClasses+" in "+JAR.toAbsolutePath()
+                +" do not match the source compiled for this oracle; run tools/Project.ps1 -Action build and retry");
+    }
+
+    static void collectSolverClasses(Class<?> type,Set<String> names){
+        names.add(type.getName().replace('.','/')+".class");
+        for(Class<?> nested:type.getDeclaredClasses())collectSolverClasses(nested,names);
     }
 
     static Class<?> loadClass(String name,String failure) {
@@ -317,6 +348,18 @@ public class ValidateSolverEquivalence {
                 records[i]=r
             end
             return records
+        end
+        function variedFixture()
+            local rs=fixture(4,true,true)
+            for i,r in ipairs(rs) do
+                r.angle=(i%2==0 and -1 or 1)*(.17+i*.09)
+                r.attachLocalX=-.48-i*.025;r.attachLocalY=.08+i*.035
+                r.footLocalY=-.09;r.headLocalY=.13
+                r.vx=.3-i*.04;r.vy=.15;r.angularVelocity=(i-2.5)*.3
+                if r.sourcePose then r.sourcePose.attachLocalX=-.57;r.sourcePose.attachLocalY=-.12+i*.02 end
+                Geometry.footprint(r,1.3,.22,math.sqrt(1.3^2+.22^2))
+            end
+            return rs
         end
         function chains(count)
             local all={}
@@ -421,6 +464,7 @@ public class ValidateSolverEquivalence {
     }
 
     static Fixture fixture(String scenario){
+        if(scenario.equals("geometry-4")||scenario.equals("inputs-4"))return new Fixture("variedFixture()",4);
         if(Set.of("rest-1","straight-1","turn-1").contains(scenario)) return new Fixture("fixture(1,false,false)",1);
         if(scenario.startsWith("chains-")){
             int chains=Integer.parseInt(scenario.substring("chains-".length(),scenario.indexOf('x')));
@@ -447,7 +491,7 @@ public class ValidateSolverEquivalence {
         return switch(base(scenario)){
             case "rest" -> new double[]{1,.5};
             case "straight","mass","reset","unload-replacement","backend-switch","rollback","chains" -> new double[]{1+tick*.02,.5};
-            case "turn","topology-change" -> new double[]{1+Math.sin(tick*.04)*3,.5+Math.sin(tick*.02)*1.5};
+            case "turn","geometry","inputs","topology-change" -> new double[]{1+Math.sin(tick*.04)*3,.5+Math.sin(tick*.02)*1.5};
             case "brake" -> new double[]{1+Math.min(tick,40)*.02,.5};
             case "reverse" -> new double[]{1-tick*.015,.5};
             case "slack" -> new double[]{1+2*Math.sin(tick*.045),.5};
@@ -485,6 +529,19 @@ public class ValidateSolverEquivalence {
             if(base.equals("topology-change")&&tick>=12&&tick<28&&index==17){
                 // After the split the second chain root lives beside the first chain.
                 source.rawset("x",target[0]-5.);
+            }
+        }
+        if(base.equals("inputs")){
+            for(int index=1;index<=count;index++){
+                KahluaTable r=record(records,index);
+                boolean elastic=(tick/7+index)%2==0;
+                r.rawset("mass",30.+index*19+tick%9);
+                r.rawset("length",1.2+(tick%8)*.04);
+                r.rawset("anchorHeight",(tick%3)*.035);
+                r.rawset("z",(tick%4)*.025);
+                r.rawset("nativeElastic",elastic);
+                try {r.rawset("gear",eval("return {getFullType=function() return '"+(elastic?"Base.Rope":"Base.Chain")+"' end}"));}
+                catch(Exception error){throw new AssertionError(error);}
             }
         }
         if(base.equals("mass")){
@@ -692,13 +749,15 @@ public class ValidateSolverEquivalence {
     // ---------------------------------------------------------------- oracle 1: old Java vs new Java
 
     static void javaVsJava() throws Exception {
+        for(boolean persistent:new boolean[]{true,false}){
         for(String scenario:SCENARIOS){
+            if(!persistent&&base(scenario).equals("rollback"))continue;
             Fixture fixture=fixture(scenario);
             KahluaTable a=(KahluaTable)eval("return "+fixture.expr);
             KahluaTable b=(KahluaTable)eval("return "+fixture.expr);
             Object stateA=OLD_JAVA.prepare(a);
             Object stateB=NEW_JAVA.prepare(b);
-            String where="java-vs-java/"+scenario;
+            String where="java-vs-java/"+(persistent?"persistent/":"legacy/")+scenario;
             System.out.println("oracle1 scenario="+scenario+" bodies="+fixture.bodies+" ticks="+ticks(scenario));
             long started=System.nanoTime();
             boolean obstructionObserved=false,gapObserved=false;
@@ -736,7 +795,7 @@ public class ValidateSolverEquivalence {
                 }
                 KahluaTable groupA=platform.newTable(),groupB=platform.newTable();
                 double totalA,totalB;
-                if(backendSwitch(scenario,tick)){
+                if(!persistent||backendSwitch(scenario,tick)){
                     OLD_JAVA.release(stateA);
                     NEW_JAVA.release(stateB);
                     totalA=OLD_JAVA.legacy(stateA,new SolverEnvironment(javaWorld(scenario,tick)),groupA,
@@ -753,7 +812,7 @@ public class ValidateSolverEquivalence {
                 compareNumber(at+"/accumulated-load",totalA,totalB);
                 compareGroups(at,groupA,groupB,JAVA_GROUP);
                 checkResetsConsumed(at,scenario,tick,a,b);
-                compareBodies(at,a,b,backendSwitch(scenario,tick)?JAVA_BODY_ALL:JAVA_BODY_TICK);
+                compareBodies(at,a,b,(!persistent||backendSwitch(scenario,tick))?JAVA_BODY_ALL:JAVA_BODY_TICK);
                 if(isObstacleScenario(scenario)&&groupA.rawget("nativeObstruction")!=null) obstructionObserved=true;
                 if(base(scenario).equals("unload-replacement")&&num(groupA,"nativeGap",0)>0) gapObserved=true;
             }
@@ -766,7 +825,57 @@ public class ValidateSolverEquivalence {
             NEW_JAVA.release(stateB);
             compareBodies(where+"/release",a,b,JAVA_BODY_ALL);
             if(base(scenario).equals("chains")) chainsCheck(where+"/chains",a,fixture.bodies/32);
-            System.out.println("oracle1 done scenario="+scenario+" ("+seconds(started)+")");
+            System.out.println("oracle1 done mode="+(persistent?"persistent":"legacy")+" scenario="+scenario+" ("+seconds(started)+")");
+        }
+        }
+        delayedRollback();
+    }
+
+    /** Fail only after a complete substep has changed native history, not at the
+     * first query. Compare recovery to an untouched independent state as well as
+     * the pre-failure record snapshot; old-vs-new alone could share a rollback bug. */
+    static void delayedRollback() throws Exception {
+        for(JavaBackend backend:new JavaBackend[]{OLD_JAVA,NEW_JAVA}){
+            String expr="(function() local rs=fixture(1,false,false);local r=rs[1];r.length=30;r.vx=12;r.vy=9;r.angle=.6;r.angularVelocity=.8;return rs end)()";
+            KahluaTable probe=(KahluaTable)eval("return "+expr);
+            int[] reads={0};
+            SolverEnvironment.World counting=new SolverEnvironment.World(){
+                public int flags(int x,int y,int z){reads[0]++;return 0;}
+                public boolean blocked(int x,int y,int z,int bx,int by){reads[0]++;return false;}
+            };
+            Object probeState=backend.prepare(probe);
+            double firstRoot=1+(1.3-1)/3;
+            backend.persistent(probeState,new SolverEnvironment(counting),platform.newTable(),1,.05,1,.5,firstRoot,.5);
+            backend.release(probeState);
+            if(reads[0]==0||num(record(probe,1),"x",0)<=.4)
+                fail("delayed rollback probe did not complete a moving substep");
+            int firstReads=reads[0];reads[0]=0;
+            IllegalStateException injected=new IllegalStateException("injected after completed substep");
+            SolverEnvironment.World delayed=new SolverEnvironment.World(){
+                void visit(){if(++reads[0]>firstReads)throw injected;}
+                public int flags(int x,int y,int z){visit();return 0;}
+                public boolean blocked(int x,int y,int z,int bx,int by){visit();return false;}
+            };
+            KahluaTable failed=(KahluaTable)eval("return "+expr),reference=(KahluaTable)eval("return "+expr);
+            Object failedState=backend.prepare(failed),referenceState=backend.prepare(reference);
+            Map<Integer,Object[]> before=snapshot(failed,JAVA_SNAPSHOT);
+            try{
+                backend.persistent(failedState,new SolverEnvironment(delayed),platform.newTable(),3,.05,1,.5,1.3,.5);
+                fail("delayed rollback failure was not reached: "+backend.name());
+            }catch(IllegalStateException failure){if(failure!=injected)throw failure;}
+            String at="delayed-rollback/"+backend.name();
+            assertStable(at,failed,before);
+            compareBodies(at+"/history",failed,reference,JAVA_BODY_HISTORY);
+            for(int tick=0;tick<5;tick++){
+                KahluaTable ga=platform.newTable(),gb=platform.newTable();
+                double a=backend.persistent(failedState,new SolverEnvironment(clearWorld()),ga,2,.02,1,.5,1.1,.6);
+                double b=backend.persistent(referenceState,new SolverEnvironment(clearWorld()),gb,2,.02,1,.5,1.1,.6);
+                compareNumber(at+"/recovery-load",a,b);compareGroups(at,ga,gb,JAVA_GROUP);
+                compareBodies(at+"/recovery",failed,reference,JAVA_BODY_TICK);
+            }
+            backend.release(failedState);backend.release(referenceState);
+            compareBodies(at+"/released",failed,reference,JAVA_BODY_ALL);
+            System.out.println("PASS delayed rollback backend="+backend.name()+" firstSubstepWorldReads="+firstReads+" failedWorldRead="+(firstReads+1));
         }
     }
 
@@ -1071,6 +1180,11 @@ public class ValidateSolverEquivalence {
         return out.toByteArray();
     }
 
+    // Git checkouts may use CRLF; immutable source identity is the canonical LF
+    // text hash, while separate raw hashes preserve exact local provenance.
+    static String canonicalSha256(Path path) throws Exception {
+        return sha256(Files.readString(path).replace("\r\n","\n").getBytes(java.nio.charset.StandardCharsets.UTF_8));
+    }
     static String sha256(Path path) throws Exception {return sha256(Files.readAllBytes(path));}
 
     static String sha256(byte[] data) throws Exception {

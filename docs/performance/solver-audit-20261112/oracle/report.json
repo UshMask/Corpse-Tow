@@ -1,0 +1,125 @@
+{
+  "status": "passed",
+  "oracle": "three-way solver equivalence",
+  "command": "<GAME>\\jre64\\bin\\java.exe --enable-native-access=ALL-UNNAMED -Duser.home=<REPO>\\local\\runs\\solver-equivalence-20261112-020408\\home -Dcvp.game=<GAME> -Dcvp.jar=<REPO>\\CorpseProxyLab\\42\\media\\java\\CorpseProxyWorld.jar -Dfile.encoding=UTF-8 -Dstdout.encoding=UTF-8 -Dstderr.encoding=UTF-8 -cp <REPO>\\local\\runs\\solver-equivalence-20261112-020408\\validators;<REPO>\\local\\runs\\solver-equivalence-20261112-020408\\classes;<GAME>\\projectzomboid.jar;<GAME>\\*;<ZOMBIEBUDDY> cvpworld.ValidateSolverEquivalence",
+  "runDir": "<REPO>\\local\\runs\\solver-equivalence-20261112-020408",
+  "baseline": {
+    "javaPath": "<REPO>\\tests\\fixtures\\solver_baseline\\TowingSolver.java",
+    "javaSha256": "A957246BDB14361A878EA96E23AFCF2C45359A646E522700BF294571F006476F",
+    "javaRawSha256": "DC04B22E89B820BB18CBE0C261FF21CA4EEC1BA7E7A317616B7FB63F0D24EA87",
+    "hashNormalization": "utf8-crlf-to-lf",
+    "luaPath": "<REPO>\\tests\\fixtures\\solver_baseline\\CVP_GroupConstraints.lua",
+    "luaSha256": "6A77D2484C93D003E09351B654955F8602EC7620B1E31B1484354AF87B0B348E",
+    "luaRawSha256": "7E3E20D9686912C4D5AF5781F3C31B7313FC60D17196DA4F51D1929BF68E571F",
+    "generatedBaselineFixture": "<REPO>\\tests\\fixtures\\solver_equivalence\\TowingSolverBaseline.java"
+  },
+  "current": {
+    "javaPath": "<REPO>\\CorpseProxyLab\\source\\cvpworld\\TowingSolver.java",
+    "javaSha256": "814E08438E71DE4760CD1B95E7F5BD277F63D070F4D44F2E6BAAE9B28660A0D3",
+    "luaPath": "<REPO>\\CorpseProxyLab\\42\\media\\lua\\shared\\CVP_GroupConstraints.lua",
+    "luaSha256": "1B2BE7BE9FB6565BF65905298C6D7EDFEAC2C3D7CC26363D646B890E4EA1FF11"
+  },
+  "jar": {
+    "path": "<REPO>\\CorpseProxyLab\\42\\media\\java\\CorpseProxyWorld.jar",
+    "sha256": "D18A09978B13EB9EB1724AEBDAC499CD517E5AAF528B1C5CC281E20A0DEDE18E"
+  },
+  "environment": {
+    "game": "<GAME>",
+    "jdk": "<JDK>",
+    "zombieBuddy": "<ZOMBIEBUDDY>"
+  },
+  "timing": {
+    "compileSolverSeconds": 1.389,
+    "compileValidatorSeconds": 1.644,
+    "oracleSeconds": 52.185
+  },
+  "failures": [],
+  "comparedValues": 2112346,
+  "maxAbsoluteError": 0.0,
+  "scenarios": 30,
+  "scaling": [
+    {
+      "chains": 1,
+      "bodies": 32,
+      "ticks": 60,
+      "stepsPerTick": 2,
+      "solveMs": 2.836,
+      "perBodyPerTickUs": 1.477,
+      "maxCrossChainError": 0.0
+    },
+    {
+      "chains": 2,
+      "bodies": 64,
+      "ticks": 60,
+      "stepsPerTick": 2,
+      "solveMs": 4.274,
+      "perBodyPerTickUs": 1.113,
+      "maxCrossChainError": 0.0
+    },
+    {
+      "chains": 4,
+      "bodies": 128,
+      "ticks": 60,
+      "stepsPerTick": 2,
+      "solveMs": 11.832,
+      "perBodyPerTickUs": 1.541,
+      "maxCrossChainError": 0.0
+    }
+  ],
+  "negativeControls": [
+    {
+      "name": "java-old-distance",
+      "kind": "semantic",
+      "detected": true,
+      "seconds": 0.845
+    },
+    {
+      "name": "java-stale-candidate-trig",
+      "kind": "semantic",
+      "detected": true,
+      "seconds": 0.871
+    },
+    {
+      "name": "lua-old-distance",
+      "kind": "semantic",
+      "detected": true,
+      "seconds": 1.747
+    },
+    {
+      "name": "nested-only-jar",
+      "kind": "artifact-guard",
+      "detected": true,
+      "seconds": 0.439
+    }
+  ],
+  "header": {
+    "oracle": "three-way (old-java vs new-java, old-lua vs new-lua, new-java vs new-lua)",
+    "baselineJavaPath": "<REPO>\\tests\\fixtures\\solver_baseline\\TowingSolver.java",
+    "baselineHashNormalization": "utf8-crlf-to-lf",
+    "baselineJavaSha256": "A957246BDB14361A878EA96E23AFCF2C45359A646E522700BF294571F006476F",
+    "baselineJavaRawSha256": "DC04B22E89B820BB18CBE0C261FF21CA4EEC1BA7E7A317616B7FB63F0D24EA87",
+    "baselineLuaPath": "<REPO>\\tests\\fixtures\\solver_baseline\\CVP_GroupConstraints.lua",
+    "baselineLuaSha256": "6A77D2484C93D003E09351B654955F8602EC7620B1E31B1484354AF87B0B348E",
+    "baselineLuaRawSha256": "7E3E20D9686912C4D5AF5781F3C31B7313FC60D17196DA4F51D1929BF68E571F",
+    "currentJavaPath": "<REPO>\\CorpseProxyLab\\source\\cvpworld\\TowingSolver.java",
+    "currentJavaSha256": "814E08438E71DE4760CD1B95E7F5BD277F63D070F4D44F2E6BAAE9B28660A0D3",
+    "currentLuaPath": "<REPO>\\CorpseProxyLab\\42\\media\\lua\\shared\\CVP_GroupConstraints.lua",
+    "currentLuaSha256": "1B2BE7BE9FB6565BF65905298C6D7EDFEAC2C3D7CC26363D646B890E4EA1FF11",
+    "jarPath": "<REPO>\\CorpseProxyLab\\42\\media\\java\\CorpseProxyWorld.jar",
+    "jarFileSha256": "D18A09978B13EB9EB1724AEBDAC499CD517E5AAF528B1C5CC281E20A0DEDE18E",
+    "jarTowingSolverClassSha256": "4F68F1C7F54F0CF9D61835E49792DB70E31AA0F810E3B0680FB0B4EC8C4958E8",
+    "compiledTowingSolverClassSha256": "4F68F1C7F54F0CF9D61835E49792DB70E31AA0F810E3B0680FB0B4EC8C4958E8",
+    "jarClassMatchesCompiled": "true",
+    "jarSolverClassCount": "4",
+    "jarSolverClasses": "cvpworld/TowingSolver$Body.class,cvpworld/TowingSolver$Pose.class,cvpworld/TowingSolver$State.class,cvpworld/TowingSolver.class",
+    "jarMismatchedSolverClasses": "",
+    "jarClassCheck": "enforced",
+    "nativeClass": "cvpworld.TowingSolver",
+    "nativeClassSource": "file:/<REPO>/local/runs/solver-equivalence-20261112-020408/classes/",
+    "baselineClass": "cvpworld.TowingSolverBaseline",
+    "baselineClassSource": "file:/<REPO>/local/runs/solver-equivalence-20261112-020408/validators/",
+    "nativeSolverVersion": "1",
+    "backend": "in-process-java-native (+ kahlua Lua oracle in same JVM)",
+    "luaVm": "kahlua null"
+  }
+}

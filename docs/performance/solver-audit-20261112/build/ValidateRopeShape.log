@@ -1,0 +1,1 @@
+PASS visual rope parity: comparisons=8640000 maxError=0.0 (positions, velocities, sleep, length, quality, material, frame ownership)

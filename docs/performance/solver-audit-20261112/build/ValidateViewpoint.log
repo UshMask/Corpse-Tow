@@ -1,0 +1,15 @@
+java.exe : WARNING: A terminally deprecated method in sun.misc.Unsafe has been called
+At <REPO>\tools\Project.ps1:138 char:5
++     & $exe @arguments *> $log
++     ~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (WARNING: A term...has been called:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+WARNING: sun.misc.Unsafe::objectFieldOffset has been called by org.joml.MemUtil$MemUtilUnsafe (file:/<GAME>/projectzomboid.jar)
+WARNING: Please consider reporting this to the maintainers of class org.joml.MemUtil$MemUtilUnsafe
+WARNING: sun.misc.Unsafe::objectFieldOffset will be removed in a future release
+PASS free rope uses installed Viewpoint model-motion history and snapshot phase
+PASS moving corpse heading matches native AnimationPlayer rendered angle
+PASS first-person projection remains ready; explicit adapter version
+PASS native third-person false return retains usable projection and finite screen coordinates
+PASS installed Viewpoint reflection bindings, patch signatures, adapter initialization and clear

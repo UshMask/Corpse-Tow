@@ -1,0 +1,16 @@
+java.exe : WARNING: A terminally deprecated method in sun.misc.Unsafe has been called
+At <REPO>\tools\Project.ps1:138 char:5
++     & $exe @arguments *> $log
++     ~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (WARNING: A term...has been called:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+WARNING: sun.misc.Unsafe::objectFieldOffset has been called by org.joml.MemUtil$MemUtilUnsafe (file:/<GAME>/projectzomboid.jar)
+WARNING: Please consider reporting this to the maintainers of class org.joml.MemUtil$MemUtilUnsafe
+WARNING: sun.misc.Unsafe::objectFieldOffset will be removed in a future release
+PASS prepared lighting: consecutive cells, null/hidden cells, return to cell, next frame/player and unchanged colours
+PASS batch/native draw equivalence: per-segment matrices/light/depth/blend, one shader pair, failure cleanup
+[CVP-FreeRopeScene] retry in 5 s: java.lang.IllegalStateException: injected transient renderer failure
+java.lang.IllegalStateException: injected transient renderer failure
+	at cvpworld.ValidateFreeRopeScene.main(ValidateFreeRopeScene.java:497)
+PASS free scene: immutable queued frames, stable motion keys, stock/Viewpoint matrices, cleanup and native bindings

@@ -1,0 +1,134 @@
+javac.exe : <HOME>\Documents\���� ���� ��������\tests\ValidateWorld.java:11: warning: Unsafe is internal propriet
+ary API and may be removed in a future release
+At <REPO>\tools\Project.ps1:138 char:5
++     & $exe @arguments *> $log
++     ~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (<HOME>\Do... future release:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+import sun.misc.Unsafe;
+               ^
+<HOME>\Documents\���� ���� ��������\tests\ValidateVehicleAuthority.java:6: warning: Unsafe is internal proprietar
+y API and may be removed in a future release
+import sun.misc.Unsafe;
+               ^
+<HOME>\Documents\���� ���� ��������\tests\ValidateWorld.java:29: warning: Unsafe is internal proprietary API and 
+may be removed in a future release
+        Field unsafeField=Unsafe.class.getDeclaredField("theUnsafe");unsafeField.setAccessible(true);
+                          ^
+<HOME>\Documents\���� ���� ��������\tests\ValidateWorld.java:30: warning: Unsafe is internal proprietary API and 
+may be removed in a future release
+        IsoDeadBody body=(IsoDeadBody)((Unsafe)unsafeField.get(null)).allocateInstance(IsoDeadBody.class);
+                                        ^
+<HOME>\Documents\���� ���� ��������\tests\ValidateWorld.java:52: warning: Unsafe is internal proprietary API and 
+may be removed in a future release
+        validateReadPass((Unsafe)unsafeField.get(null));
+                          ^
+<HOME>\Documents\���� ���� ��������\tests\ValidateWorld.java:53: warning: Unsafe is internal proprietary API and 
+may be removed in a future release
+        validateAngle((Unsafe)unsafeField.get(null));
+                       ^
+<HOME>\Documents\���� ���� ��������\tests\ValidateWorld.java:60: warning: Unsafe is internal proprietary API and 
+may be removed in a future release
+    static void validateAngle(Unsafe unsafe) throws Exception {
+                              ^
+<HOME>\Documents\���� ���� ��������\tests\ValidateWorld.java:115: warning: Unsafe is internal proprietary API and
+ may be removed in a future release
+    static zombie.iso.IsoGridSquare readSquare(Unsafe unsafe) throws Exception {
+                                               ^
+<HOME>\Documents\���� ���� ��������\tests\ValidateWorld.java:120: warning: Unsafe is internal proprietary API and
+ may be removed in a future release
+    static void validateReadPass(Unsafe unsafe) throws Exception {
+                                 ^
+<HOME>\Documents\���� ���� ��������\tests\ValidateWorld.java:312: warning: Unsafe is internal proprietary API and
+ may be removed in a future release
+            var unsafeField=Unsafe.class.getDeclaredField("theUnsafe");unsafeField.setAccessible(true);
+                            ^
+<HOME>\Documents\���� ���� ��������\tests\ValidateWorld.java:313: warning: Unsafe is internal proprietary API and
+ may be removed in a future release
+            var unsafe=(Unsafe)unsafeField.get(null);
+                        ^
+<HOME>\Documents\���� ���� ��������\tests\ValidateVehicleAuthority.java:17: warning: Unsafe is internal proprieta
+ry API and may be removed in a future release
+    static Unsafe unsafe;
+           ^
+<HOME>\Documents\���� ���� ��������\tests\ValidateVehicleAuthority.java:202: warning: Unsafe is internal propriet
+ary API and may be removed in a future release
+        unsafe=(Unsafe)field(Unsafe.class,"theUnsafe").get(null);
+                ^
+<HOME>\Documents\���� ���� ��������\tests\ValidateVehicleAuthority.java:202: warning: Unsafe is internal propriet
+ary API and may be removed in a future release
+        unsafe=(Unsafe)field(Unsafe.class,"theUnsafe").get(null);
+                             ^
+<HOME>\Documents\���� ���� ��������\tests\ValidateFreeRopeScene.java:45: warning: Unsafe is internal proprietary 
+API and may be removed in a future release
+        var field=sun.misc.Unsafe.class.getDeclaredField("theUnsafe");field.setAccessible(true);
+                          ^
+<HOME>\Documents\���� ���� ��������\tests\ValidateFreeRopeScene.java:47: warning: Unsafe is internal proprietary 
+API and may be removed in a future release
+        var vehicle=(zombie.vehicles.BaseVehicle)((sun.misc.Unsafe)field.get(null)).allocateInstance(type);
+                                                           ^
+<HOME>\Documents\���� ���� ��������\tests\ValidateFreeRopeScene.java:140: warning: Unsafe is internal proprietary
+ API and may be removed in a future release
+        var uf=sun.misc.Unsafe.class.getDeclaredField("theUnsafe");uf.setAccessible(true);var unsafe=(sun.misc.Unsafe)u
+f.get(null);
+                       ^
+<HOME>\Documents\���� ���� ��������\tests\ValidateFreeRopeScene.java:140: warning: Unsafe is internal proprietary
+ API and may be removed in a future release
+        var uf=sun.misc.Unsafe.class.getDeclaredField("theUnsafe");uf.setAccessible(true);var unsafe=(sun.misc.Unsafe)u
+f.get(null);
+                                                                                                              ^
+<HOME>\Documents\���� ���� ��������\tests\ValidateFreeRopeScene.java:193: warning: Unsafe is internal proprietary
+ API and may be removed in a future release
+        var f=sun.misc.Unsafe.class.getDeclaredField("theUnsafe");f.setAccessible(true);
+                      ^
+<HOME>\Documents\���� ���� ��������\tests\ValidateFreeRopeScene.java:194: warning: Unsafe is internal proprietary
+ API and may be removed in a future release
+        var square=(zombie.iso.IsoGridSquare)((sun.misc.Unsafe)f.get(null)).allocateInstance(zombie.iso.IsoGridSquare.c
+lass);
+                                                       ^
+<HOME>\Documents\���� ���� ��������\tests\ValidateFreeRopeScene.java:612: warning: Unsafe is internal proprietary
+ API and may be removed in a future release
+        var f=sun.misc.Unsafe.class.getDeclaredField("theUnsafe");f.setAccessible(true);var u=(sun.misc.Unsafe)f.get(nu
+ll);
+                      ^
+<HOME>\Documents\���� ���� ��������\tests\ValidateFreeRopeScene.java:612: warning: Unsafe is internal proprietary
+ API and may be removed in a future release
+        var f=sun.misc.Unsafe.class.getDeclaredField("theUnsafe");f.setAccessible(true);var u=(sun.misc.Unsafe)f.get(nu
+ll);
+                                                                                                       ^
+<HOME>\Documents\���� ���� ��������\tests\ValidateBodyWear.java:21: warning: Unsafe is internal proprietary API a
+nd may be removed in a future release
+        var unsafeField=sun.misc.Unsafe.class.getDeclaredField("theUnsafe");unsafeField.setAccessible(true);
+                                ^
+<HOME>\Documents\���� ���� ��������\tests\ValidateBodyWear.java:22: warning: Unsafe is internal proprietary API a
+nd may be removed in a future release
+        var unsafe=(sun.misc.Unsafe)unsafeField.get(null);
+                            ^
+<HOME>\Documents\���� ���� ��������\tests\ValidateViewpoint.java:12: warning: Unsafe is internal proprietary API 
+and may be removed in a future release
+  var unsafeField=sun.misc.Unsafe.class.getDeclaredField("theUnsafe");unsafeField.setAccessible(true);
+                          ^
+<HOME>\Documents\���� ���� ��������\tests\ValidateViewpoint.java:13: warning: Unsafe is internal proprietary API 
+and may be removed in a future release
+  Object corpse=((sun.misc.Unsafe)unsafeField.get(null)).allocateInstance(body);
+                          ^
+<HOME>\Documents\���� ���� ��������\tests\ValidateRopeShaders.java:59: warning: Unsafe is internal proprietary AP
+I and may be removed in a future release
+        var unsafeField=sun.misc.Unsafe.class.getDeclaredField("theUnsafe");unsafeField.setAccessible(true);
+                                ^
+<HOME>\Documents\���� ���� ��������\tests\ValidateRopeShaders.java:60: warning: Unsafe is internal proprietary AP
+I and may be removed in a future release
+        var vehicle=(zombie.vehicles.BaseVehicle)((sun.misc.Unsafe)unsafeField.get(null)).allocateInstance(zombie.vehic
+les.BaseVehicle.class);
+                                                           ^
+<HOME>\Documents\���� ���� ��������\tests\ValidateOptionalViewpoint.java:45: warning: Unsafe is internal propriet
+ary API and may be removed in a future release
+            var unsafeField=sun.misc.Unsafe.class.getDeclaredField("theUnsafe");unsafeField.setAccessible(true);
+                                    ^
+<HOME>\Documents\���� ���� ��������\tests\ValidateOptionalViewpoint.java:46: warning: Unsafe is internal propriet
+ary API and may be removed in a future release
+            var cell=(zombie.iso.IsoCell)((sun.misc.Unsafe)unsafeField.get(null)).allocateInstance(zombie.iso.IsoCell.c
+lass);
+                                                   ^
+30 warnings

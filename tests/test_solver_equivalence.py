@@ -8,7 +8,9 @@ compares all three implementations through their record contract.
 
 A Java compile/load failure or a stale shipped JAR is a test failure, never a
 Lua-only pass. The shipped JAR SHA-256 is reported and its ``cvpworld/TowingSolver.class``
-bytes must equal the class compiled from the current source.
+bytes, including every nested solver class, must equal freshly compiled source.
+Three semantic mutations are run in isolated artifacts; a hash guard is not
+accepted as evidence that the semantic oracle detects divergent physics.
 
 Artifacts per run (compile logs, oracle log, report.json) are written under
 ``local/runs/solver-equivalence-<timestamp>/``.
@@ -19,7 +21,9 @@ import os
 import re
 import subprocess
 import time
+import tempfile
 import unittest
+import zipfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -31,8 +35,8 @@ LIVE_LUA = ROOT / 'CorpseProxyLab/42/media/lua/shared/CVP_GroupConstraints.lua'
 SHIPPED_JAR = ROOT / 'CorpseProxyLab/42/media/java/CorpseProxyWorld.jar'
 VALIDATOR = ROOT / 'tests/ValidateSolverEquivalence.java'
 
-BASELINE_JAVA_SHA256 = 'DC04B22E89B820BB18CBE0C261FF21CA4EEC1BA7E7A317616B7FB63F0D24EA87'
-BASELINE_LUA_SHA256 = '7E3E20D9686912C4D5AF5781F3C31B7313FC60D17196DA4F51D1929BF68E571F'
+BASELINE_JAVA_SHA256 = 'A957246BDB14361A878EA96E23AFCF2C45359A646E522700BF294571F006476F'
+BASELINE_LUA_SHA256 = '6A77D2484C93D003E09351B654955F8602EC7620B1E31B1484354AF87B0B348E'
 GENERATED_HEADER = (
     '// GENERATED test-only copy of tests/fixtures/solver_baseline/TowingSolver.java\n'
     '// The frozen baseline is renamed so it compiles and runs beside the production solver.\n'
@@ -48,6 +52,11 @@ def sha256_file(path):
         for chunk in iter(lambda: handle.read(1 << 20), b''):
             digest.update(chunk)
     return digest.hexdigest().upper()
+
+
+def canonical_sha256_file(path):
+    """Git's LF source identity, independent of a Windows CRLF checkout."""
+    return hashlib.sha256(path.read_bytes().replace(b'\r\n', b'\n')).hexdigest().upper()
 
 
 def expected_baseline_fixture():
@@ -168,6 +177,93 @@ def parse_header(output):
 class SolverEquivalenceTests(unittest.TestCase):
     maxDiff = None
 
+    def test_canonical_hash_is_checkout_independent_but_content_sensitive(self):
+        with tempfile.TemporaryDirectory() as directory:
+            source = Path(directory) / 'fixture.txt'
+            source.write_bytes(b'alpha\nbeta\n')
+            lf = canonical_sha256_file(source)
+            raw_lf = sha256_file(source)
+            source.write_bytes(b'alpha\r\nbeta\r\n')
+            self.assertEqual(lf, canonical_sha256_file(source))
+            self.assertNotEqual(raw_lf, sha256_file(source))
+            source.write_bytes(b'alpha\r\nmutation\r\n')
+            self.assertNotEqual(lf, canonical_sha256_file(source))
+
+    def semantic_negative_controls(self, run_dir, javac, java, classpath, classes, validators, home):
+        """Execute real semantic faults; hash/JAR guards cannot count as detection.
+
+        All mutations live under this run's artifacts. Production and frozen
+        fixture bytes are never changed. The normal oracle remains strict.
+        """
+        evidence = []
+        common = [str(java), '--enable-native-access=ALL-UNNAMED', f'-Duser.home={home}',
+                  '-Dfile.encoding=UTF-8', f'-Dcvp.jar={SHIPPED_JAR}']
+        cases = [
+            ('java-old-distance', 'java', 'oldDistance=Math.sqrt(', 'oldDistance=.01+Math.sqrt('),
+            ('java-stale-candidate-trig', 'java', 'if(paTrig!=pa)', 'if(Double.isNaN(paTrig))'),
+            ('lua-old-distance', 'lua', 'r.oldDistance=math.sqrt(', 'r.oldDistance=.01+math.sqrt('),
+        ]
+        for name, domain, before, after in cases:
+            directory = run_dir / 'negative-controls' / name
+            directory.mkdir(parents=True, exist_ok=True)
+            options = [f'-Dcvp.onlyOracle={domain}']
+            mutated_classes = classes
+            if domain == 'java':
+                original = LIVE_JAVA.read_text(encoding='utf-8')
+                self.assertEqual(1, original.count(before), f'mutation anchor changed: {name}')
+                source = directory / 'TowingSolver.java'
+                source.write_text(original.replace(before, after), encoding='utf-8')
+                mutated_classes = directory / 'classes'
+                mutated_classes.mkdir()
+                process, _ = run([str(javac), '-encoding', 'UTF-8', '-cp', f'{classes};{classpath}',
+                                  '-d', str(mutated_classes), str(source)], directory / 'compile.log')
+                self.assertEqual(0, process.returncode, tail(directory / 'compile.log'))
+                # Deliberately compiled changed bytecode must get past the JAR guard
+                # before the independent frozen semantic reference rejects it.
+                options.append('-Dcvp.jarCheck=disabled')
+            else:
+                original = LIVE_LUA.read_text(encoding='utf-8')
+                self.assertEqual(1, original.count(before), f'mutation anchor changed: {name}')
+                source = directory / 'CVP_GroupConstraints.lua'
+                source.write_text(original.replace(before, after), encoding='utf-8')
+                options.append(f'-Dcvp.liveLua={source}')
+            cp = f'{validators};{mutated_classes};{classes};{classpath}'
+            process, elapsed = run(common + options + ['-cp', cp, 'cvpworld.ValidateSolverEquivalence'], directory / 'oracle.log')
+            output = process.stdout + process.stderr
+            self.assertNotEqual(0, process.returncode, f'semantic mutation survived: {name}')
+            self.assertIn('nativeSmoke=ok', output, f'{name} failed before semantic execution:\n{output}')
+            self.assertRegex(output, rf'AssertionError: {domain}-vs-{domain}/[^\n]* != ',
+                             f'{name} was not rejected by record equivalence:\n{output}')
+            self.assertNotIn('oracleResult=PASS', output)
+            evidence.append({'name': name, 'kind': 'semantic', 'detected': True, 'seconds': round(elapsed, 3)})
+
+        # Top-level class remains byte-identical: only a nested class is stale.
+        directory = run_dir / 'negative-controls' / 'nested-only-jar'
+        directory.mkdir(parents=True, exist_ok=True)
+        changed_jar = directory / 'nested-stale.jar'
+        target = 'cvpworld/TowingSolver$Body.class'
+        with zipfile.ZipFile(SHIPPED_JAR) as source, zipfile.ZipFile(changed_jar, 'w') as dest:
+            self.assertIn(target, source.namelist())
+            for entry in source.infolist():
+                data = source.read(entry.filename)
+                if entry.filename == target:
+                    data = data[:-1] + bytes([data[-1] ^ 1])
+                dest.writestr(entry, data)
+        command = common + [f'-Dcvp.jar={changed_jar}', '-cp', f'{validators};{classes};{classpath}',
+                            'cvpworld.ValidateSolverEquivalence']
+        process, elapsed = run(command, directory / 'oracle.log')
+        header = parse_header(process.stdout)
+        self.assertNotEqual(0, process.returncode, 'nested-only stale JAR survived')
+        self.assertEqual(header['jarTowingSolverClassSha256'], header['compiledTowingSolverClassSha256'])
+        self.assertEqual('false', header.get('jarClassMatchesCompiled'))
+        self.assertEqual(target, header.get('jarMismatchedSolverClasses'))
+        self.assertIn('stale shipped JAR', process.stderr)
+        self.assertNotIn('nativeSmoke=ok', process.stdout)
+        evidence.append({'name': 'nested-only-jar', 'kind': 'artifact-guard', 'detected': True,
+                         'seconds': round(elapsed, 3)})
+        print('negative controls PASS: 3 semantic mutations + nested-only stale JAR')
+        return evidence
+
     def test_three_way_oracle(self):
         settings = load_settings()
         game = find_game(settings)
@@ -189,8 +285,8 @@ class SolverEquivalenceTests(unittest.TestCase):
         self.assertTrue(java.is_file(), f'missing game JVM: {java}')
 
         # Frozen baseline and generated fixture integrity.
-        baseline_java_sha = sha256_file(BASELINE_JAVA)
-        baseline_lua_sha = sha256_file(BASELINE_LUA)
+        baseline_java_sha = canonical_sha256_file(BASELINE_JAVA)
+        baseline_lua_sha = canonical_sha256_file(BASELINE_LUA)
         self.assertEqual(BASELINE_JAVA_SHA256, baseline_java_sha,
                          'frozen baseline Java was modified; restore the a892 source')
         self.assertEqual(BASELINE_LUA_SHA256, baseline_lua_sha,
@@ -279,8 +375,11 @@ class SolverEquivalenceTests(unittest.TestCase):
             'baseline': {
                 'javaPath': str(BASELINE_JAVA),
                 'javaSha256': baseline_java_sha,
+                'javaRawSha256': sha256_file(BASELINE_JAVA),
+                'hashNormalization': 'utf8-crlf-to-lf',
                 'luaPath': str(BASELINE_LUA),
                 'luaSha256': baseline_lua_sha,
+                'luaRawSha256': sha256_file(BASELINE_LUA),
                 'generatedBaselineFixture': str(BASELINE_FIXTURE),
             },
             'current': {
@@ -356,8 +455,8 @@ class SolverEquivalenceTests(unittest.TestCase):
             if report['maxAbsoluteError'] >= EXPECTED_TOLERANCE:
                 header_failures.append(
                     f'max absolute error {report["maxAbsoluteError"]} is not below {EXPECTED_TOLERANCE}')
-            if report['scenarios'] < 28:
-                header_failures.append(f'only {report["scenarios"]} scenarios exercised; expected 28')
+            if report['scenarios'] < 30:
+                header_failures.append(f'only {report["scenarios"]} scenarios exercised; expected 30')
 
         # Controlled-scaling evidence for the optimisation stages: identical 1/2/4 x 32-body
         # chains under the same input, timed on the live native backend.
@@ -388,6 +487,9 @@ class SolverEquivalenceTests(unittest.TestCase):
             if not entry['solveMs'] > 0:
                 header_failures.append(f'controlled scaling reported no solve time for {entry["chains"]} chains')
 
+        if not failures and not header_failures:
+            report['negativeControls'] = self.semantic_negative_controls(
+                run_dir, javac, java, classpath, classes, validators, home)
         report['header'] = header
         report['failures'].extend(header_failures)
         report['status'] = 'passed' if not report['failures'] else 'failed'

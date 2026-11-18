@@ -22,6 +22,8 @@ MODULES = (
     'test_link_performance',
     'test_diagnostics',
     'test_diagnostics_bench',
+    'test_solver_bench',
+    'test_solver_evidence',
 )
 
 

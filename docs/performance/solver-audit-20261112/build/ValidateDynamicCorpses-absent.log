@@ -1,0 +1,1 @@
+PASS native world corpse rendering: actual B42 default, camera/cache transitions, SP/MP guards, live position/light and pre-fog stage; Viewpoint=false

@@ -1,0 +1,7 @@
+PASS Lua/Java parity: 576995 state checks, 2160 group steps, 1800 rays; max absolute error=0.0
+PASS contact load: touching, separated, touching again
+PASS atomic chain stop: wall, unloaded cell, solid tile, tree; Lua and Java
+PASS stopped 32-body chain: spacing=1.2 jitter=false maxSpeed=0.0 maxOrbit=0.0 maxFrameMove=0.0 maxDrift=0.0
+PASS stopped 32-body chain: spacing=1.2 jitter=true maxSpeed=0.0 maxOrbit=2.3834527454358323E-5 maxFrameMove=0.0 maxDrift=0.0
+PASS stopped 32-body chain: spacing=0.25 jitter=false maxSpeed=0.0 maxOrbit=0.0 maxFrameMove=0.0 maxDrift=0.0
+PASS stopped 32-body chain: spacing=0.0 jitter=false maxSpeed=0.0 maxOrbit=0.0 maxFrameMove=0.0 maxDrift=0.0
