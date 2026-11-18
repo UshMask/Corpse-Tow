@@ -4,19 +4,28 @@ from test_continuous_rope import SCENE
 
 MOCK = '''
 BW=require 'CVP_BodyWear';
-function recover() now=now+5000;BW.observe(R);return BW.recover(R) end
+Jobs=require 'CVP_SaveJobs'
+function recover()
+ now=now+5000;R.authorityTick=(R.authorityTick or 0)+1;BW.observe(R);BW.recover(R)
+ for i=1,16 do
+  local job=R.saveJob;if not job or not job.wear then break end
+  now=now+1;Jobs.advance(job)
+ end
+ assert(not (R.saveJob and R.saveJob.wear),'body wear job did not settle')
+ local ok,why=BW.recover(R);R.wearError=not ok and why or nil;return ok,why
+end
 nativeSkeletons=0;nativeRemovals=0
 for _,b in ipairs(bodies) do
  b.isPlayer=function(s) return s.playerBody==true end
  b.isSkeleton=function(s) return s.skeleton==true end
 end
 CVPBodyWearNative={
- skeleton=function(b)
+ skeletonTransition=function(b)
   if failSkeleton then return false end
   if not b.skeleton then b.skeleton=true;b.inv.rows={};nativeSkeletons=nativeSkeletons+1 end
   return true
  end,
- remove=function(b,sq)
+ removeTransition=function(b,sq)
   assert(not S.index.byBody[b.md.CVPBodyKey],'body removed before durable tether edit')
   if failRemove then return false end
   if b.world then sq:removeCorpse(b);nativeRemovals=nativeRemovals+1 end
@@ -30,6 +39,57 @@ SandboxVars.CorpseProxyLab.BodyWear=true;SandboxVars.CorpseProxyLab.BodyWearRate
 '''
 
 class BodyWearTests(unittest.TestCase):
+    def test_unloaded_square_is_not_used_after_a_phase_yields(self):
+        for stage in (1, 2):
+            with self.subTest(stage=stage):
+                l=client();l.globals().stage=stage;l.execute(MOCK+'''
+                    local id=link(C,A,rope)
+                    body.skeleton=stage==2
+                    body.md.CVPBodyWear={distance=500,stage=stage-1,pending=stage}
+                    BW.observe(R);assert(BW.recover(R));assert(R.saveJob and R.saveJob.wear)
+                    if stage==2 then
+                        assert(not Jobs.advance(R.saveJob))
+                        assert(not S.index.byBody.A and nativeRemovals==0)
+                    end
+                    unloaded=true;assert(Jobs.advance(R.saveJob));assert(not R.saveJob)
+                    assert(body.md.CVPBodyWear.pending==stage and body.world)
+                    assert(nativeSkeletons==0 and nativeRemovals==0)
+                    unloaded=false;assert(recover())
+                    assert(body.md.CVPBodyWear.pending==nil)
+                    assert(nativeSkeletons==(stage==1 and 1 or 0))
+                    assert(nativeRemovals==(stage==2 and 1 or 0))
+                    assert(E.get(S.graph.links[id].equipment)==rope)
+                ''')
+
+    def test_transition_starts_only_one_checkpoint_phase_per_tick(self):
+        l=client();l.execute(MOCK+'''
+            body.md.CVPBodyWear={distance=500,stage=0,pending=1}
+            body2.md.CVPBodyWear={distance=500,stage=0,pending=1}
+            local backend=CVPEquipmentPersistence;local checkpoint=backend.checkpointSquareAsync
+            backend.checkpointSquareAsync=function(q)
+                local ticket=checkpoint(q);ticket.wait=true;return ticket
+            end
+            backend.poll=function(ticket)
+                if ticket.wait then ticket.wait=nil;return 0 end
+                return 1
+            end
+            local function advance() now=now+16;assert(R:tick({player},.05)) end
+            BW.observe(R);local before=equipmentCheckpoints
+            advance();assert(R.saveJob and R.saveJob.wear)
+            assert(equipmentCheckpoints==before+1 and nativeSkeletons==0)
+            assert(BW.recover(R));assert(equipmentCheckpoints==before+1)
+            advance();assert(equipmentCheckpoints==before+1 and nativeSkeletons==0)
+            advance()
+            assert(equipmentCheckpoints==before+2 and nativeSkeletons==1)
+            advance();assert(equipmentCheckpoints==before+2)
+            advance();assert(equipmentCheckpoints==before+3 and R.saveJob)
+            advance()
+            assert(equipmentCheckpoints==before+3 and not R.saveJob)
+            local pending=0;for _ in pairs(R.simulation.wearPending) do pending=pending+1 end
+            assert(pending==1,'second body started in the same transition budget')
+            advance();assert(equipmentCheckpoints==before+4 and R.saveJob and nativeSkeletons==1)
+        ''')
+
     def test_notice_only_after_success_not_failed_retry(self):
         l=client();l.execute(MOCK+'''
             link(C,A,rope);notices={}
@@ -50,8 +110,8 @@ class BodyWearTests(unittest.TestCase):
                 l=client();l.globals().unavailable=unavailable;l.execute(MOCK+'''
                     local a=link(C,A,rope);local b=link(C,B,chain)
                     body.md.CVPBodyWear={distance=500,stage=0,pending=1}
-                    local native=CVPBodyWearNative.skeleton;local attempts=0
-                    CVPBodyWearNative.skeleton=function(b)
+                    local native=CVPBodyWearNative.skeletonTransition;local attempts=0
+                    CVPBodyWearNative.skeletonTransition=function(b)
                         if b==body then attempts=attempts+1;return false end
                         return native(b)
                     end
@@ -62,8 +122,9 @@ class BodyWearTests(unittest.TestCase):
                     assert(body2.x>x+.1 and body.x==stopped)
                     assert(attempts<=1 and R.wearError and not R.error)
                     assert(S.index.byBody.A and E.get(S.graph.links[a].equipment)==rope)
-                    body.sq=square;CVPBodyWearNative.skeleton=native
-                    now=now+6000;assert(R:tick({player},.05))
+                    body.sq=square;CVPBodyWearNative.skeletonTransition=native
+                    now=now+6000
+                    for i=1,3 do now=now+16;assert(R:tick({player},.05)) end
                     assert(body.skeleton and not R.simulation.wearPending[body])
                     assert(nativeSkeletons==1)
                     edit(a,'remove','a');edit(b,'remove','a')
@@ -75,8 +136,8 @@ class BodyWearTests(unittest.TestCase):
             local a=link(C,A,rope);local b=link(C,B,chain)
             body.md.CVPBodyWear={distance=500,stage=0,pending=1}
             body2.md.CVPBodyWear={distance=250,stage=1,pending=2};body2.skeleton=true
-            CVPBodyWearNative.skeleton=function() error('injected native failure') end
-            assert(not recover())
+            CVPBodyWearNative.skeletonTransition=function() error('injected native failure') end
+            recover();assert(not recover())
             assert(body.world and not body2.world and nativeRemovals==1)
             assert(S.index.byBody.A and not S.index.byBody.B)
             assert(E.get(S.graph.links[a].equipment)==rope and E.get(S.graph.links[b].equipment)==chain)

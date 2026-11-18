@@ -22,16 +22,22 @@ public final class BodyWearNative {
         ByteBuffer buffer=ByteBuffer.allocate(4);buffer.putInt(1);buffer.flip();
         body.loadChange(IsoObjectChange.BECOME_SKELETON,new ByteBufferReader(buffer));
     }
-    public static boolean skeleton(IsoDeadBody body) throws Exception {
+    /** Apply only the in-memory/network step; Lua schedules its durable checkpoints. */
+    public static boolean skeletonTransition(IsoDeadBody body) {
         allowed(body);
         if(body.getSquare()==null || body.getStaticMovingObjectIndex()<0) return false;
         if(!body.isSkeleton()) {
             becomeSkeleton(body);
         }
         if(GameServer.server) body.sendObjectChange(IsoObjectChange.BECOME_SKELETON);
-        return EquipmentPersistence.checkpointSquare(body.getSquare());
+        return true;
     }
-    public static boolean remove(IsoDeadBody body,IsoGridSquare square) throws Exception {
+    /** Compatibility entry point for callers that still require a synchronous barrier. */
+    public static boolean skeleton(IsoDeadBody body) throws Exception {
+        return skeletonTransition(body) && EquipmentPersistence.checkpointSquare(body.getSquare());
+    }
+    /** Apply only the in-memory/network step; the retained square is saved by Lua. */
+    public static boolean removeTransition(IsoDeadBody body,IsoGridSquare square) {
         allowed(body);
         if(square==null) return false;
         if(body.getStaticMovingObjectIndex()>=0) {
@@ -39,6 +45,10 @@ public final class BodyWearNative {
             if(GameServer.server) INetworkPacket.sendToAll(PacketTypes.PacketType.RemoveCorpseFromMap,body);
             body.removeFromWorld();body.removeFromSquare();
         }
-        return EquipmentPersistence.checkpointSquare(square);
+        return true;
+    }
+    /** Compatibility entry point for callers that still require a synchronous barrier. */
+    public static boolean remove(IsoDeadBody body,IsoGridSquare square) throws Exception {
+        return removeTransition(body,square) && EquipmentPersistence.checkpointSquare(square);
     }
 }

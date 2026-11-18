@@ -11,13 +11,17 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 MODULES = (
+    'test_body_wear',
     'test_link_graph',
     'test_graph_deletion',
     'test_link_service',
     'test_shared_rope',
     'test_equipment',
     'test_save_jobs',
+    'test_save_queue',
     'test_mp_budget',
+    'test_mp_test_stand',
+    'test_idle_runtime',
     'test_link_multiplayer',
     'test_link_performance',
     'test_diagnostics',

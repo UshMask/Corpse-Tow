@@ -76,7 +76,7 @@ class SaveQueueTests(unittest.TestCase):
         n.send(request);n.pump();s.execute('assert(not R.saveJob and #R.saveQueue==0)')
 
     def test_waiting_disconnect_and_movement_reject_before_consumption(self):
-        for change,reason in (("players={player}",'player disconnected'),("player2.x=player2.x+2",'endpoint not reachable')):
+        for change,reason in (("players={player}",'IGUI_CVP_PlayerDisconnected'),("player2.x=player2.x+2",'IGUI_CVP_NoPath')):
             n,_=concurrent();s=n.server;b=n.clients['friend'];s.execute(change)
             drain(n)
             self.assertEqual(b.eval('answer.why'),reason)

@@ -6,6 +6,7 @@ import org.joml.Matrix4f;
 import org.joml.Vector3f;
 import org.lwjgl.opengl.GL;
 import static org.lwjgl.opengl.GL33.*;
+import static org.lwjgl.opengl.GL43.*;
 import static org.lwjgl.glfw.GLFW.*;
 import viewpoint.core.Frame;
 import viewpoint.render.*;
@@ -43,6 +44,23 @@ public class ValidateRopeShaders {
         glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MIN_FILTER,GL_NEAREST);glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MAG_FILTER,GL_NEAREST);
         return t;
     }
+    static void storage(int program,String block,int binding,int buffer) {
+        int index=glGetProgramResourceIndex(program,GL_SHADER_STORAGE_BLOCK,block);
+        if(index==-1) throw new AssertionError("missing shader storage block "+block);
+        glShaderStorageBlockBinding(program,index,binding);
+        glBindBufferBase(GL_SHADER_STORAGE_BUFFER,binding,buffer);
+    }
+    static void uploadDraws(int buffer,int texture,float[] records) {
+        if(texture==0) {
+            glBindBuffer(GL_SHADER_STORAGE_BUFFER,buffer);
+            glBufferData(GL_SHADER_STORAGE_BUFFER,records,GL_STREAM_DRAW);
+        } else {
+            glActiveTexture(GL_TEXTURE0);glBindTexture(GL_TEXTURE_BUFFER,texture);
+            glBindBuffer(GL_TEXTURE_BUFFER,buffer);
+            glBufferData(GL_TEXTURE_BUFFER,records,GL_STREAM_DRAW);
+            glTexBuffer(GL_TEXTURE_BUFFER,GL_RGBA32F,buffer);
+        }
+    }
     static java.util.List<Vector3f> mesh(boolean chain) throws Exception {
         var lines=Files.readAllLines(Path.of("CorpseProxyLab/42/media/models/"+(chain?"CVPChainSegment":"CVPRopeSegment")+".txt"));
         var result=new java.util.ArrayList<Vector3f>();int count=Integer.parseInt(lines.get(11).trim());
@@ -73,7 +91,18 @@ public class ValidateRopeShaders {
         Frame frame=new Frame();frame.camX=5;frame.camY=5;frame.camZ=.2f;
         viewpoint.core.View.enabled=true;
         var values=ModelDraws.class.getDeclaredField("values");values.setAccessible(true);
-        int buffer=glGenBuffers(),drawTexture=glGenTextures();
+        boolean storageDraws=glGetUniformLocation(program,"uDraws")==-1;
+        int buffer=glGenBuffers(),drawTexture=storageDraws?0:glGenTextures();
+        int emptyStorage=0;
+        if(storageDraws) {
+            // Viewpoint 0.1.7 uses std430 buffers for draws and packed relief grids.
+            emptyStorage=glGenBuffers();glBindBuffer(GL_SHADER_STORAGE_BUFFER,emptyStorage);
+            glBufferData(GL_SHADER_STORAGE_BUFFER,new int[64],GL_STATIC_DRAW);
+            storage(program,"ModelDraws",0,buffer);
+            storage(program,"ModelPalettes",1,emptyStorage);
+            storage(program,"ReliefWalls",2,emptyStorage);
+            storage(program,"ReliefFlow",3,emptyStorage);
+        }
         glUseProgram(program);matrix(program,"uViewProjection",new Matrix4f());
         glUniform1i(glGetUniformLocation(program,"uDraws"),0);glUniform1i(glGetUniformLocation(program,"uPalettes"),0);
         glUniform1i(glGetUniformLocation(program,"uRelief"),1);
@@ -82,6 +111,7 @@ public class ValidateRopeShaders {
         glUniform1i(glGetUniformLocation(program,"uReliefFlow"),4);
         glUniform2f(glGetUniformLocation(program,"uReliefCamera"),frame.camX,frame.camY);
         glUniform1f(glGetUniformLocation(program,"uReliefScale"),1);
+        glUniform2f(glGetUniformLocation(program,"uReliefFlowCells"),4,4);
         int walls=texture(2,4,new float[16]),water=texture(3,4,new float[16]),flow=texture(4,4,new float[16]);
         glVertexAttribI1i(6,0);glVertexAttrib4f(2,0,0,0,0);glVertexAttrib4f(3,0,0,0,0);
         boolean detectedOld=false,tilted=false;
@@ -105,8 +135,7 @@ public class ValidateRopeShaders {
             for(int i=0;i<last;i++) {
                 Matrix4f transform=new Matrix4f();FreeRopeScene.sceneSegment(row,i,frame.camX,frame.camY,frame.camZ,transform);
                 ModelDraws draws=new ModelDraws();int at=draws.add(null,null,null,transform,-1,-1,0,ModelDraws.COLOUR|ModelDraws.SHADOW);
-                glActiveTexture(GL_TEXTURE0);glBindTexture(GL_TEXTURE_BUFFER,drawTexture);glBindBuffer(GL_TEXTURE_BUFFER,buffer);
-                glBufferData(GL_TEXTURE_BUFFER,(float[])values.get(draws),GL_STREAM_DRAW);glTexBuffer(GL_TEXTURE_BUFFER,GL_RGBA32F,buffer);
+                uploadDraws(buffer,drawTexture,(float[])values.get(draws));
                 for(int n=0;n<2;n++) {
                     int point=i+n;Vector3f actual=vertex(program,new Vector3f(0,n,0));
                     if(attached && point==end) ValidateFreeRopeScene.near(actual,nativeHitch);
@@ -131,8 +160,7 @@ public class ValidateRopeShaders {
                 var old=ValidateFreeRopeScene.rendered(source,true);var transform=new Matrix4f();
                 FreeRopeScene.sceneSegment(old,first?0:last-1,frame.camX,frame.camY,frame.camZ,transform);
                 ModelDraws draws=new ModelDraws();draws.add(null,null,null,transform,-1,-1,0,3);
-                glActiveTexture(GL_TEXTURE0);glBindTexture(GL_TEXTURE_BUFFER,drawTexture);glBindBuffer(GL_TEXTURE_BUFFER,buffer);
-                glBufferData(GL_TEXTURE_BUFFER,(float[])values.get(draws),GL_STREAM_DRAW);glTexBuffer(GL_TEXTURE_BUFFER,GL_RGBA32F,buffer);
+                uploadDraws(buffer,drawTexture,(float[])values.get(draws));
                 detectedOld|=vertex(program,new Vector3f(0,first?0:1,0)).distance(nativeHitch)>.1f;
             }
             if(attached) {
@@ -181,7 +209,7 @@ public class ValidateRopeShaders {
         for(int i=0;i<expected.length;i++)
             if(!Double.isFinite(actual[i]) || Math.abs(actual[i]-expected[i])>.0001)
                 throw new AssertionError("rope capture not restored at coordinate "+i);
-        glDeleteBuffers(buffer);glDeleteTextures(drawTexture);glDeleteTextures(walls);glDeleteTextures(water);glDeleteTextures(flow);
+        glDeleteBuffers(buffer);glDeleteBuffers(emptyStorage);glDeleteTextures(drawTexture);glDeleteTextures(walls);glDeleteTextures(water);glDeleteTextures(flow);
         FreeRopeScene.clear();viewpoint.core.View.enabled=false;
         System.out.println("PASS 144 Viewpoint shader cases: attached/free rope and chain, signed relief, slopes, mesh clearance, endpoint stability, early exits and recovery");
     }

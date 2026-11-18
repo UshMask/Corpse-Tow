@@ -30,10 +30,13 @@ class IdleRuntimeTests(unittest.TestCase):
         l=self.fixture();l.execute('''
             local discover=H.discover;discoveries=0
             H.discover=function(...) discoveries=discoveries+1;return discover(...) end
-            frame();assert(fullTicks==1 and discoveries==1)
+            -- The fixture already discovered at this time. Startup maintenance
+            -- must reuse that scan and leave the next scan on its normal cadence.
+            frame();assert(fullTicks==1 and discoveries==0)
             for i=1,100 do frame() end
-            assert(fullTicks==1 and discoveries==1)
-            now=now+1000;frame();assert(fullTicks==2 and discoveries==2)
+            now=now+999;frame();assert(fullTicks==1 and discoveries==0)
+            now=now+1;frame();assert(fullTicks==2 and discoveries==1)
+            frame();assert(fullTicks==2 and discoveries==1)
         ''')
 
     def test_new_attachment_wakes_without_waiting_for_discovery(self):

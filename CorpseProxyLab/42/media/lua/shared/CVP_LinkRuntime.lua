@@ -208,6 +208,7 @@ end
 function Runtime:tick(players,dt,forPresentation)
     self.loadElapsed=0
     local now=self.host.now()
+    self.authorityTick=(self.authorityTick or 0)+1
     if self.saveJob or #self.saveQueue>0 then
         if type(players)=='function' then players=players() end
         local online={};for _,p in ipairs(players) do online[p]=true end

@@ -320,6 +320,12 @@ public final class EquipmentPersistence {
         Class<?> saveThread=threadSave==null?null:threadSave.getType();
         capabilityField(missing,features,"squareCheckpointMp",saveThread,"toThread");
         capabilityField(missing,features,"squareCheckpointMp",saveThread,"fromThread");
+        if(saveThread!=null) {
+            try { serverChunkEnqueue(saveThread); }
+            catch(Exception|LinkageError error) {
+                capabilityFailure(missing,features,"squareCheckpointMp","native chunk enqueue unavailable ("+describe(error)+")");
+            }
+        }
         Class<?> saveTask=capabilityClass(missing,features,"squareCheckpointMp","zombie.network.ServerChunkLoader$SaveLoadedTask");
         Class<?> request=capabilityClass(missing,features,"squareCheckpointMp","zombie.network.ClientChunkRequest");
         Class<?> requestChunk=capabilityClass(missing,features,"squareCheckpointMp","zombie.network.ClientChunkRequest$Chunk");
@@ -488,6 +494,19 @@ public final class EquipmentPersistence {
     }
     @SuppressWarnings("unchecked")
     private static Queue<Object> queue(Object owner,String name) throws Exception { return (Queue<Object>)field(owner,name); }
+    private static Method serverChunkEnqueue(Class<?> saveThread) throws Exception {
+        try { saveThread.getDeclaredField("taskLock"); }
+        catch(NoSuchFieldException legacy) { return null; }
+        Class<?> taskType=Class.forName("zombie.network.ServerChunkLoader$SaveTask");
+        Method enqueue=saveThread.getDeclaredMethod("addTask",taskType);
+        enqueue.setAccessible(true);return enqueue;
+    }
+    static void enqueueServerChunkSave(Object saveThread,Object task) throws Exception {
+        Method enqueue=serverChunkEnqueue(saveThread.getClass());
+        // New workers wait on taskLock. The native method queues and wakes them.
+        if(enqueue!=null) enqueue.invoke(saveThread,task);
+        else queue(saveThread,"toThread").add(task);
+    }
     private static byte[] bytes(ByteBuffer source) {
         ByteBuffer copy=source.duplicate();copy.position(0);byte[] result=new byte[copy.remaining()];copy.get(result);return result;
     }
@@ -620,7 +639,7 @@ public final class EquipmentPersistence {
     }
     public static SaveJob checkpointSquareAsync(IsoGridSquare square) throws Exception {
         authority();if(square==null || square.getChunk()==null) throw new IllegalArgumentException("loaded square required");
-        IsoChunk chunk=square.getChunk();byte[] expected;Object task;Queue<Object> destination;Probe completed;
+        IsoChunk chunk=square.getChunk();byte[] expected;Object task;Checkpoint enqueue;Probe completed;
         if(GameServer.server) {
             Object loader=field(Class.forName("zombie.network.ServerMap$ServerCell"),"chunkLoader");
             Object thread=field(loader,"threadSave");worker((Thread)thread);
@@ -628,7 +647,7 @@ public final class EquipmentPersistence {
             saved.wx=chunk.wx;saved.wy=chunk.wy;request.getByteBuffer(saved);chunk.SaveLoadedChunk(saved,new CRC32());
             ByteBuffer copy=saved.bb.duplicate();copy.flip();expected=bytes(copy);
             task=create("zombie.network.ServerChunkLoader$SaveLoadedTask",new Class<?>[]{loader.getClass(),ClientChunkRequest.class,ClientChunkRequest.Chunk.class},loader,request,saved);
-            destination=queue(thread,"toThread");
+            enqueue=()->enqueueServerChunkSave(thread,task);
             Queue<Object> finished=queue(thread,"fromThread");completed=()->finished.contains(task);
         } else {
             worker(WorldStreamer.instance.worldStreamer);
@@ -636,7 +655,7 @@ public final class EquipmentPersistence {
             call(task,"allocBuffer",new Class<?>[]{});CRC32 crc=(CRC32)field(task,"crc");
             ByteBuffer saved=chunk.Save((ByteBuffer)field(task,"byteBuffer"),crc,true);field(task,"byteBuffer",saved);
             ByteBuffer copy=saved.duplicate();copy.flip();expected=bytes(copy);
-            destination=queue(ChunkSaveWorker.instance,"toSaveQueue");
+            Queue<Object> destination=queue(ChunkSaveWorker.instance,"toSaveQueue");enqueue=()->destination.add(task);
             // Native WriteQueuedSave clears chunk only after its write attempt and cleanup.
             completed=()->field(task,"chunk")==null;
         }
@@ -645,7 +664,8 @@ public final class EquipmentPersistence {
         int wx=chunk.wx,wy=chunk.wy;
         SaveJob job=checkpointJob(task,completed,()->verifyChunkBytes(file,expected));
         job.rejected=()->ChunkChecksum.setChecksum(wx,wy,-1L);
-        destination.add(task);return job;
+        try { enqueue.run();return job; }
+        catch(Exception error) { acknowledgements.remove(task);throw error; }
     }
     // Called only after native completion. Both native writers cache the new CRC
     // before SafeWrite, so a failed write must not suppress the next recovery save.

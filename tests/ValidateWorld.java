@@ -54,6 +54,7 @@ public class ValidateWorld {
         validateItems();
         validatePersistence();
         validateAsyncPersistence();
+        validateServerChunkEnqueue((Unsafe)unsafeField.get(null));
         validateCosmeticPersistence();
         validateClothingPersistence();
     }
@@ -298,6 +299,32 @@ public class ValidateWorld {
         rejects(()->ItemCodec.encode(item("Rope",(short)-1)));
         System.out.println("PASS native item codec: three materials, ID/name/condition/favorite/custom weight/nested modData, GlobalModData table/file roundtrip, malformed/oversized data and role guards");
         System.out.println("Scope: supplied native load targets; no script-factory bootstrap, live ownership transfer, global_mod_data.bin transaction or crash recovery");
+    }
+    static void validateServerChunkEnqueue(Unsafe unsafe) throws Exception {
+        var loaderType=Class.forName("zombie.network.ServerChunkLoader");
+        var workerType=Class.forName("zombie.network.ServerChunkLoader$SaveChunkThread");
+        var constructor=workerType.getDeclaredConstructor(loaderType);constructor.setAccessible(true);
+        Object worker=constructor.newInstance(unsafe.allocateInstance(loaderType));
+        var task=unsafe.allocateInstance(Class.forName("zombie.network.ServerChunkLoader$SaveLoadedTask"));
+        EquipmentPersistence.Probe take;
+        try {
+            var nativeTake=workerType.getDeclaredMethod("takeTask");nativeTake.setAccessible(true);
+            take=()->nativeTake.invoke(worker)==task;
+        } catch(NoSuchMethodException legacy) {
+            var field=workerType.getDeclaredField("toThread");field.setAccessible(true);
+            var queue=(java.util.concurrent.BlockingQueue<?>)field.get(worker);
+            take=()->queue.take()==task;
+        }
+        var accepted=new java.util.concurrent.FutureTask<Boolean>(take::saved);
+        var waiting=new Thread(accepted,"CVP-native-idle-chunk-save");waiting.setDaemon(true);waiting.start();
+        try {
+            long deadline=System.nanoTime()+2_000_000_000L;
+            while(waiting.getState()!=Thread.State.WAITING && System.nanoTime()<deadline) Thread.sleep(1);
+            if(waiting.getState()!=Thread.State.WAITING) throw new AssertionError("native chunk consumer did not become idle");
+            EquipmentPersistence.enqueueServerChunkSave(worker,task);
+            if(!accepted.get(2,java.util.concurrent.TimeUnit.SECONDS)) throw new AssertionError("wrong native task received");
+        } finally { waiting.interrupt();waiting.join(1000); }
+        System.out.println("PASS server chunk enqueue wakes the idle engine consumer and preserves task identity");
     }
     static void validateAsyncPersistence() throws Exception {
         var fs=zombie.ZomboidFileSystem.instance;var core=zombie.core.Core.getInstance();
