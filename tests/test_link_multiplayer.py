@@ -531,6 +531,78 @@ class LinkMultiplayerTests(unittest.TestCase):
         for p in parts:n.receive(p)
         c.execute('assert(not body.world and replicas==1)')
 
+    def test_body_transfer_lease_is_peer_bound_cached_and_acknowledged(self):
+        n=Network();s=n.server;owner=n.clients['owner'];friend=n.clients['friend']
+        s.execute('''
+            root=link(C,A,rope);bodyEncodes=0;bodyCaptures=0
+            local encode=CVPNetwork.encode
+            CVPNetwork.encode=function(...) bodyEncodes=bodyEncodes+1;return encode(...) end
+            local capture=CVPMPServer.capture
+            CVPMPServer.capture=function(...) bodyCaptures=bodyCaptures+1;return capture(...) end
+        ''')
+        n.publish();s.execute('bodyCaptures=0')
+        for client in (owner,friend):
+            client.execute('body.sq:removeCorpse(body);now=now+100;CVPMPClient.tick()')
+        owner_request=next(p for p in take(owner,'clientPackets') if p['name']=='body')
+        friend_request=next(p for p in take(friend,'clientPackets') if p['name']=='body')
+        self.assertIn('id',owner_request['args']);self.assertIn('lease',owner_request['args'])
+        self.assertNotEqual(owner_request['args']['lease'],friend_request['args']['lease'])
+
+        stolen=dict(owner_request);stolen['who']='friend';n.send(stolen)
+        self.assertFalse([p for p in take(s,'packets') if p['name']=='body'])
+        n.send(owner_request);owner_parts=[p for p in take(s,'packets') if p['name']=='body']
+        self.assertTrue(owner_parts);self.assertEqual(s.eval('bodyEncodes'),1)
+        self.assertEqual(s.eval('bodyCaptures'),0)
+        for part in owner_parts:n.receive(part)
+        owner_ack=next(p for p in take(owner,'clientPackets') if p['name']=='bodyAck')
+        n.send(owner_ack)
+
+        s.execute('now=now+1100');n.send(friend_request)
+        friend_parts=[p for p in take(s,'packets') if p['name']=='body']
+        self.assertTrue(friend_parts);self.assertEqual(s.eval('bodyEncodes'),1)
+        s.execute('now=now+1100');n.send(owner_request)
+        self.assertFalse([p for p in take(s,'packets') if p['name']=='body'])
+
+    def test_unacknowledged_body_transfer_has_bounded_cached_retries(self):
+        n=Network();s=n.server;c=n.clients['friend']
+        s.execute('''
+            root=link(C,A,rope);bodyEncodes=0
+            local encode=CVPNetwork.encode
+            CVPNetwork.encode=function(...) bodyEncodes=bodyEncodes+1;return encode(...) end
+        ''')
+        n.publish();c.execute('body.sq:removeCorpse(body);now=now+100;CVPMPClient.tick()')
+        request=next(p for p in take(c,'clientPackets') if p['name']=='body')
+        transfers=[]
+        for delay in (0,1100,2100):
+            s.globals().now += delay
+            n.send(request)
+            parts=[p for p in take(s,'packets') if p['name']=='body']
+            self.assertTrue(parts);transfers.append(parts[0]['args']['transfer'])
+        self.assertEqual(len(set(transfers)),1);self.assertEqual(s.eval('bodyEncodes'),1)
+        s.execute('now=now+3100');n.send(request)
+        self.assertFalse([p for p in take(s,'packets') if p['name']=='body'])
+        self.assertEqual(s.eval('bodyEncodes'),1)
+
+    def test_acknowledged_body_can_request_a_later_recovery_lease(self):
+        n=Network();s=n.server;c=n.clients['friend']
+        s.execute('root=link(C,A,rope)');n.publish()
+        c.execute('body.sq:removeCorpse(body);now=now+100;CVPMPClient.tick()')
+        request=next(p for p in take(c,'clientPackets') if p['name']=='body')
+        n.send(request)
+        for part in [p for p in take(s,'packets') if p['name']=='body']:n.receive(part)
+        ack=next(p for p in take(c,'clientPackets') if p['name']=='bodyAck');n.send(ack)
+
+        s.execute('now=now+100;publish()')
+        for packet in take(s,'packets'):n.receive(packet)
+        c.execute('body.sq:removeCorpse(body);now=now+1100;CVPMPClient.tick()')
+        early=next(p for p in take(c,'clientPackets') if p['name']=='bodyMissing');n.send(early)
+        s.execute('now=now+5000')
+        c.execute('now=now+1100;CVPMPClient.tick()')
+        renewal=next(p for p in take(c,'clientPackets') if p['name']=='bodyMissing');n.send(renewal)
+        n.publish();c.execute('now=now+1100;CVPMPClient.tick()')
+        renewed=next(p for p in take(c,'clientPackets') if p['name']=='body')
+        self.assertNotEqual(request['args']['lease'],renewed['args']['lease'])
+
     def test_multiframe_snapshot_over_320_links_applies_only_when_complete(self):
         n=Network();s=n.server;c=n.clients['owner']
         # Ground-only links need no simulated native bodies; transport still validates
@@ -627,6 +699,30 @@ class LinkMultiplayerTests(unittest.TestCase):
         for packet in take(s,'packets'): n.receive(packet)
         n.pump()
         s.execute('local count=0;for _ in pairs(S.graph.links) do count=count+1 end;assert(count==1 and rope:getContainer()~=storage)')
+
+    def test_result_reasons_are_redacted_at_wire_boundary(self):
+        n=Network();c=n.clients['owner'];s=n.server
+        s.execute(r"""
+            failureReason='java.nio.file.AccessDeniedException: /srv/world/CVPEquipment.bin.tmp'
+            R.submit=function(self,p,name,args,callback)
+                callback(false,nil,failureReason);return {done=true}
+            end
+        """)
+        c.execute("CVPMPClient.api.request(player,'prepare',{target=A,gear=rope.id},function() end)")
+        request=take(c,'clientPackets')[0];n.send(request)
+        first=next(p for p in take(s,'packets') if p['name']=='result')
+        self.assertEqual(first['args']['reason'],'IGUI_CVP_ActionFailed')
+        self.assertNotIn('/srv/world',first['args']['reason'])
+
+        n.send(request)
+        replay=next(p for p in take(s,'packets') if p['name']=='result')
+        self.assertEqual(replay['args']['reason'],'IGUI_CVP_ActionFailed')
+
+        s.execute("failureReason='not owner'")
+        c.execute("CVPMPClient.api.request(player,'prepare',{target=A,gear=rope.id},function() end)")
+        n.send(take(c,'clientPackets')[0])
+        known=next(p for p in take(s,'packets') if p['name']=='result')
+        self.assertEqual(known['args']['reason'],'IGUI_CVP_OtherOwner')
 
     def test_same_snapshot_refreshes_replaced_local_body_before_callbacks(self):
         n=Network();n.server.execute('link(C,A,rope)');n.publish()

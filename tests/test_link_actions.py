@@ -262,6 +262,27 @@ class LinkActionTests(unittest.TestCase):
             assert(job.finished and S.graph.links[id].a.kind=='held' and #requests==0)
         ''')
 
+    def test_spare_reconnect_records_source_visit_before_bind(self):
+        l = scene(); l.execute('''
+            local id=link(C,A,rope);edit(id,'release','a')
+            extra=item('Base.Rope');storage:AddItem(extra)
+            local job=Actions:reconnect(player,id,S.graph.links[id].revision,'a',B,nil,extra)
+            while #requests==0 do finishStage() end
+            assert(requests[1].name=='bindPrepare' and S.graph.links[id].a.kind=='ground')
+            assert(finishJob(job) and #requests==2 and requests[2].name=='command')
+            assert(requests[2].args.continuation==requests[1].result.token)
+            assert(S.graph.links[id].a.key=='B' and extra:getContainer()==storage)
+        ''')
+
+    def test_wire_rejects_gear_without_bind_continuation(self):
+        l = scene(); l.execute('''
+            local W=require 'CVP_LinkWire'
+            local bind={id='link',revision=1,side='a',op='bind',target={kind='body',key='A'},gear=0}
+            assert(not W.request('command',bind))
+            bind.continuation='server-token';assert(W.request('command',bind))
+            assert(W.request('bindPrepare',{id='link',revision=1,side='a',gear=0}))
+        ''')
+
     def test_prepare_reply_gates_second_end_and_duplicate_reply_cannot_repeat_it(self):
         l = scene(True); l.execute('''
             car.x=6;deferReply=true;local job=Actions:create(player,A,C,rope)

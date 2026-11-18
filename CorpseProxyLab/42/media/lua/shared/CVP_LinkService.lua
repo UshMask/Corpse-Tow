@@ -2,8 +2,16 @@
 -- real loaded objects and checks paths; clients never supply trusted positions.
 local G=require 'CVP_LinkGraph'
 local Service={};Service.__index=Service
+local BIND_VISIT_TTL=30000
 function Service.new(store,host)
-    return setmetatable({store=store,host=host,pending={},dirty=false,lastSave=0},Service)
+    return setmetatable({store=store,host=host,pending={},bindVisits={},dirty=false,lastSave=0},Service)
+end
+local function invalidateBindVisits(service,graph)
+    for actor,visit in pairs(service.bindVisits) do
+        local link=graph.links[visit.id];local endpoint=link and link[visit.side]
+        if not link or link.revision~=visit.revision or not endpoint or endpoint.kind~='ground'
+            or endpoint.x~=visit.x or endpoint.y~=visit.y or endpoint.z~=visit.z then service.bindVisits[actor]=nil end
+    end
 end
 function Service:refresh()
     local revision,err=self.store.linkRevision();if revision==nil then return nil,err end
@@ -11,6 +19,7 @@ function Service:refresh()
         if self.dirty then return nil,'graph changed during pending movement save' end
         local graph,why=self.store.links();if not graph then return nil,why end
         local idx,problem=G.index(graph);if not idx then return nil,problem end
+        invalidateBindVisits(self,graph)
         self.graph=graph;self.index=idx;self.persistedRevision=revision
     end
     return self.graph
@@ -18,6 +27,7 @@ end
 function Service:commit(graph)
     local ok,err,idx=self.store.editLinks(graph,self.persistedRevision)
     if not ok then self.nextWrite=self.host.now()+5000;return false,err end
+    invalidateBindVisits(self,graph)
     self.graph=graph;self.persistedRevision=graph.revision;self.index=idx or assert(G.index(graph));self.dirty=false
     self.lastSave=self.host.now();self.nextWrite=0;return true
 end
@@ -70,24 +80,26 @@ function Service:prepare(p,target,gearID,shared,reuse,revision)
     if not self.host.enabled() then return nil,'towing disabled' end
     local actor=self.host.actor(p);if not usable(actor) then return nil,'leave vehicle or unavailable player' end
     local graph,err=self:refresh();if not graph then return nil,err end
-    local e,why=self.host.resolve(target,p);if not e then return nil,why end
-    if e.kind~='body' and not G.tractor(e) or not self:near(p,actor,e) then return nil,'endpoint not reachable' end
-    local denied=self:joinable(actor,e);if denied then return nil,denied end
-    local item,equipment,owner
+    local item,equipment,owner,link
     if reuse then
-        local link=graph.links[reuse]
+        link=graph.links[reuse]
         if not shared or not link or link.revision~=revision or not link.allocation then return nil,'stale connection' end
         if not actor.allowOthers and link.owner~=actor.key then return nil,'not owner' end
-        if e.kind~='body' or #(self.index.byBody[e.key] or {})~=1 then return nil,'body branch' end
-        local same=false;for _,side in ipairs({'a','b'}) do local endPoint=link[side]
-            if endPoint.kind==e.kind and endPoint.key==e.key and endPoint.point==e.point then same=true end
-        end
-        if not same then return nil,'invalid endpoint' end
         local ready,why=self.store.linkReady(link);if not ready then return nil,why end
         equipment=link.equipment;owner=link.owner
     else
         item=self.host.item(p,gearID)
         if not item or not G.materials[item:getFullType()] or shared and item:getFullType()~='Base.Rope' then return nil,'material unavailable' end
+    end
+    local e,why=self.host.resolve(target,p);if not e then return nil,why end
+    if e.kind~='body' and not G.tractor(e) or not self:near(p,actor,e) then return nil,'endpoint not reachable' end
+    local denied=self:joinable(actor,e);if denied then return nil,denied end
+    if reuse then
+        if e.kind~='body' or #(self.index.byBody[e.key] or {})~=1 then return nil,'body branch' end
+        local same=false;for _,side in ipairs({'a','b'}) do local endPoint=link[side]
+            if endPoint.kind==e.kind and endPoint.key==e.key and endPoint.point==e.point then same=true end
+        end
+        if not same then return nil,'invalid endpoint' end
     end
     local token=self.host.uuid()
     local now=self.host.now();local batch=self.pending[actor.key]
@@ -147,6 +159,26 @@ function Service:create(p,token,target)
     if not key or holdError then return false,holdError or 'equipment transfer rejected' end
     return true,id
 end
+function Service:prepareBind(p,args)
+    if not self.host.enabled() then return nil,'towing disabled' end
+    local actor=self.host.actor(p);if not usable(actor) then return nil,'leave vehicle or unavailable player' end
+    local graph,err=self:refresh();if not graph then return nil,err end
+    local link=type(args)=='table' and graph.links[args.id]
+    if not link or link.revision~=args.revision then return nil,'stale connection' end
+    local side=args.side;if side~='a' and side~='b' then return nil,'invalid endpoint' end
+    local selected=link[side]
+    if selected.kind~='ground' then return nil,'end not free' end
+    local position,reason=self.host.actionSample(G.copy(selected))
+    if not position then return nil,reason or 'endpoint unloaded' end
+    if not self:near(p,actor,position) then return nil,'endpoint not reachable' end
+    local ready,why=self.store.linkReady(link);if not ready then return nil,why end
+    local item=self.host.item(p,args.gear)
+    if not item or item:getFullType()~='Base.Rope' then return nil,'material unavailable' end
+    local token=self.host.uuid()
+    self.bindVisits[actor.key]={token=token,id=args.id,revision=args.revision,side=side,gear=args.gear,
+        x=selected.x,y=selected.y,z=selected.z,at=self.host.now()}
+    return token
+end
 function Service:command(p,args)
     if type(args)~='table' then return false,'invalid command' end
     local actor=self.host.actor(p);if not usable(actor) then return false,'leave vehicle or unavailable player' end
@@ -161,7 +193,21 @@ function Service:command(p,args)
     end
     if not position then return false,reason or 'endpoint unloaded' end
     if selected.kind=='held' and selected.holder~=actor.key then return false,'held by another player' end
-    if not self:near(p,actor,position) and not (args.op=='bind' and args.gear and selected.kind=='ground') then return false,'endpoint not reachable' end
+    local endpointNear=self:near(p,actor,position)
+    local bindVisit
+    if args.op=='bind' and selected.kind=='ground' and args.continuation then
+        bindVisit=self.bindVisits[actor.key];self.bindVisits[actor.key]=nil
+        if not bindVisit or bindVisit.token~=args.continuation or bindVisit.id~=args.id
+            or bindVisit.revision~=args.revision or bindVisit.side~=side or bindVisit.gear~=args.gear
+            or self.host.now()-bindVisit.at>BIND_VISIT_TTL or selected.x~=bindVisit.x
+            or selected.y~=bindVisit.y or selected.z~=bindVisit.z then bindVisit=nil end
+    end
+    local bindItem
+    if args.op=='bind' and args.gear~=nil then
+        bindItem=self.host.item(p,args.gear)
+        if not bindItem or bindItem:getFullType()~='Base.Rope' then return false,'material unavailable' end
+    end
+    if not endpointNear and not bindVisit then return false,'endpoint not reachable' end
     if args.op~='remove' then local ready,why=self.store.linkReady(link);if not ready then return false,why end end
     local out,why
     if args.op=='extend' then
@@ -205,8 +251,7 @@ function Service:command(p,args)
         out,why=G.bind(graph,args.id,args.revision,side,target,actor.key,actor.allowOthers,self.host.maxBodies())
         local item
         if not out and why=='too far' and args.gear then
-            item=self.host.item(p,args.gear)
-            if not item or item:getFullType()~='Base.Rope' then return false,'material unavailable' end
+            item=bindItem
             out,why=G.joinTail(graph,args.id,args.revision,side,target,'preview-tail',actor.key,actor.allowOthers,self.host.maxBodies(),savedEnd)
         end
         if out and self.host.path then local blocked=self.host.path(opposite,target);if blocked then return false,blocked end end
@@ -240,6 +285,7 @@ function Service:command(p,args)
 end
 function Service:disconnect(actorKey)
     self.pending[actorKey]=nil
+    self.bindVisits[actorKey]=nil
     if self.rewires then self.rewires[actorKey]=nil end
     local graph,err=self:refresh();if not graph then return false,err end
     local dropped,changed=G.dropHolders(graph,actorKey)
@@ -331,9 +377,13 @@ function Service:tick(samples,holders)
             if not why and (updated or moved~=link) then graph.links[id]=moved;changed=true;expired=expired or dropped end
         end
     end
-    if changed then self.dirty=true;if expired then self.index=assert(G.index(graph)) end end
+    if changed then
+        invalidateBindVisits(self,graph);self.dirty=true
+        if expired then self.index=assert(G.index(graph)) end
+    end
     local now=self.host.now()
     for actor,row in pairs(self.pending) do if now-row.at>120000 then self.pending[actor]=nil end end
+    for actor,row in pairs(self.bindVisits) do if now-row.at>BIND_VISIT_TTL then self.bindVisits[actor]=nil end end
     for actor,row in pairs(self.rewires or {}) do if now-row.at>120000 then self.rewires[actor]=nil end end
     -- Persist moves together, not one disk write per end/frame. Forced releases
     -- and OnSave use the same path immediately; a failed write remains retryable.

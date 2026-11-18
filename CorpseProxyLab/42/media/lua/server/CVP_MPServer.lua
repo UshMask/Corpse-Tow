@@ -5,6 +5,7 @@ local G=require 'CVP_LinkGraph'
 local Runtime=require 'CVP_LinkRuntime'
 local Appearance=require 'CVP_Appearance'
 local LoadWindow=require 'CVP_LoadWindow'
+local publicReason=require 'CVP_LinkMessages'
 local S={schema=4,authority=Runtime.new(),peers=setmetatable({},{__mode='k'}),sequence=0,
     epoch=getRandomUUID(),known={},terminal={},loadWindow=LoadWindow.new(),loadOwners=setmetatable({},{__mode='k'}),
     -- Fixed-size counters only; per-peer counterparts live on each peer.
@@ -14,6 +15,16 @@ CVPMPServer=S
 -- turn spam into unbounded outgoing packets. A success reply is not charged: the
 -- operation itself is already limited by the token bucket above.
 local REPLY_MAX,REPLY_REFILL=8,.008 -- burst 8, refill 8/s
+-- Body replicas are large, exceptional recovery traffic. A state publication
+-- grants one short-lived transfer lease; loss may replay that transfer a small
+-- number of times, but can never start another encode under the same lease.
+local BODY_LEASE_MS,BODY_RENEW_MS,BODY_RETRIES,BODY_RETRY_MS=10000,5000,3,1000
+local BODY_CACHE_MS,BODY_CACHE_MAX=5000,8
+local BODY_MAX_BYTES=W.partBytes*W.maxParts
+local BODY_PEER_BYTES,BODY_GLOBAL_BYTES=BODY_MAX_BYTES*2,BODY_MAX_BYTES*4
+local BODY_PEER_REFILL,BODY_GLOBAL_REFILL=64*1024/1000,256*1024/1000
+local BODY_PEER_ENCODES,BODY_GLOBAL_ENCODES=2,4
+local BODY_PEER_ENCODE_REFILL,BODY_GLOBAL_ENCODE_REFILL=.0005,.001
 local function chargeReply(peer,now)
     peer.replyTokens=math.min(REPLY_MAX,(peer.replyTokens or REPLY_MAX)+math.max(0,now-(peer.replyTime or now))*REPLY_REFILL)
     peer.replyTime=now
@@ -24,6 +35,65 @@ local function chargeReply(peer,now)
     end
     peer.replyTokens=peer.replyTokens-1
     return true
+end
+
+local function refill(owner,tokensKey,timeKey,maximum,rate,now)
+    owner[tokensKey]=math.min(maximum,(owner[tokensKey] or maximum)
+        +math.max(0,now-(owner[timeKey] or now))*rate)
+    owner[timeKey]=now
+end
+local function chargeBodyEncode(peer,now)
+    refill(peer,'bodyEncodeTokens','bodyEncodeTime',BODY_PEER_ENCODES,BODY_PEER_ENCODE_REFILL,now)
+    refill(S,'bodyEncodeTokens','bodyEncodeTime',BODY_GLOBAL_ENCODES,BODY_GLOBAL_ENCODE_REFILL,now)
+    if peer.bodyEncodeTokens<1 or S.bodyEncodeTokens<1 or S.bodyEncoding then return false end
+    peer.bodyEncodeTokens=peer.bodyEncodeTokens-1;S.bodyEncodeTokens=S.bodyEncodeTokens-1
+    return true
+end
+local function chargeBodyBytes(peer,now,bytes)
+    refill(peer,'bodyByteTokens','bodyByteTime',BODY_PEER_BYTES,BODY_PEER_REFILL,now)
+    refill(S,'bodyByteTokens','bodyByteTime',BODY_GLOBAL_BYTES,BODY_GLOBAL_REFILL,now)
+    if bytes>peer.bodyByteTokens or bytes>S.bodyByteTokens then return false end
+    peer.bodyByteTokens=peer.bodyByteTokens-bytes;S.bodyByteTokens=S.bodyByteTokens-bytes
+    return true
+end
+local function cachedBody(offer,now)
+    local cached=S.bodyCache and S.bodyCache[offer.key]
+    if cached and now<cached.expires and cached.id==offer.id and cached.token==offer.token then return cached.payload end
+    if cached then S.bodyCache[offer.key]=nil end
+end
+local function cacheBody(offer,payload,now)
+    S.bodyCache=S.bodyCache or {}
+    local count,oldest,oldestAt=0
+    for key,cached in pairs(S.bodyCache) do
+        if now>=cached.expires then S.bodyCache[key]=nil
+        else
+            count=count+1
+            if not oldestAt or cached.storedAt<oldestAt then oldest,oldestAt=key,cached.storedAt end
+        end
+    end
+    if not S.bodyCache[offer.key] and count>=BODY_CACHE_MAX then S.bodyCache[oldest]=nil end
+    S.bodyCache[offer.key]={id=offer.id,token=offer.token,payload=payload,
+        storedAt=now,expires=now+BODY_CACHE_MS}
+end
+local function bodyOffer(peer,row,now)
+    peer.bodyOffers=peer.bodyOffers or {}
+    local offer=peer.bodyOffers[row.key]
+    if offer and (offer.session~=peer.session or offer.epoch~=S.epoch
+        or offer.id~=row.id or offer.token~=row.token) then offer=nil end
+    if offer and now>=offer.expires then
+        if offer.used then return end
+        offer=nil
+    end
+    if not offer then
+        offer={lease=getRandomUUID(),session=peer.session,epoch=S.epoch,key=row.key,id=row.id,token=row.token,
+            expires=now+BODY_LEASE_MS,renewAt=now+BODY_LEASE_MS,retries=0,nextRetry=0}
+        peer.bodyOffers[row.key]=offer
+    end
+    if not offer.acked then return offer end
+end
+local function bodyNear(p,body)
+    return math.floor(p:getZ())==math.floor(body:getZ())
+        and (p:getX()-body:getX())^2+(p:getY()-body:getY())^2<=W.radius^2
 end
 
 function S.resetStats()
@@ -217,21 +287,26 @@ function S.publish(p,snapshot,onlyChanged)
     local motion=onlyChanged and motionCompatible(pages,peer.visiblePages,peer,snapshot.graph.revision)
     if onlyChanged and peer.visibleReady==ready and now<(peer.heartbeat or 0) and samePages(pages,peer.visiblePages) then return end
     peer.visiblePages=pages;peer.visibleReady=ready;peer.heartbeat=now+1000
-    local offered={};local sent=0
+    local offered,bodyOffered={},{};local sent=0
     for _,source in ipairs(pages) do
         -- Keep the comparison snapshot intact when adding wire metadata or omitting appearance.
         local page={};for key,value in pairs(source) do page[key]=value end;page.bodies={}
         for i,row in ipairs(source.bodies) do
-            local outgoing=row
+            local base=row
             if peer.appearanceAck and peer.appearanceAck[row.key]==row.appearanceRevision then
                 snapshot.omittedBodies=snapshot.omittedBodies or {}
-                outgoing=snapshot.omittedBodies[row.key]
-                if not outgoing then
-                    outgoing={};for key,value in pairs(row) do
-                        if key~='cosmetic' and key~='clothing' then outgoing[key]=value end
+                base=snapshot.omittedBodies[row.key]
+                if not base then
+                    base={};for key,value in pairs(row) do
+                        if key~='cosmetic' and key~='clothing' then base[key]=value end
                     end
-                    outgoing.appearanceOmitted=true;snapshot.omittedBodies[row.key]=outgoing
+                    base.appearanceOmitted=true;snapshot.omittedBodies[row.key]=base
                 end
+            end
+            local outgoing={};for key,value in pairs(base) do outgoing[key]=value end
+            if not row.retired then
+                bodyOffered[row.key]=true
+                local offer=bodyOffer(peer,row,now);if offer then outgoing.lease=offer.lease end
             end
             offered[row.key]=row.appearanceRevision;page.bodies[i]=outgoing
         end
@@ -256,8 +331,12 @@ function S.publish(p,snapshot,onlyChanged)
     if not motion then peer.fullRevision=snapshot.graph.revision end
     peer.appearanceOffered=offered
     for key in pairs(peer.appearanceAck or {}) do if not offered[key] then peer.appearanceAck[key]=nil end end
+    for key in pairs(peer.bodyOffers or {}) do if not bodyOffered[key] then peer.bodyOffers[key]=nil end end
 end
 local function sendResult(p,peer,request,result)
+    -- Result reasons cross the server/client trust boundary. Keep only the
+    -- established localization allowlist; backend diagnostics remain server-side.
+    if result.reason~=nil then result.reason=publicReason(result.reason) end
     result.protocol=W.version;result.epoch=S.epoch;result.session=peer.session;result.request=request
     S.stats.results=S.stats.results+1
     if peer.stats then peer.stats.results=peer.stats.results+1 end
@@ -310,6 +389,7 @@ function S.command(module,name,p,args)
             peer.pendingRequests={};peer.requestJobs={}
             peer.session=args.session;peer.results={};peer.lastRequest=0;peer.nextSync=0
             peer.appearanceAck={};peer.appearanceOffered={}
+            peer.bodyOffers={}
             peer.visiblePages=nil;peer.visibleReady=nil
             local ok,err=S.authority:start()
             if ok then ok,err=S.authority.service:disconnect(p:getUsername()) end
@@ -346,18 +426,57 @@ function S.command(module,name,p,args)
         end
         return
     end
+    if name=='bodyAck' then
+        if not W.key(args.key) or not W.id(args.id) or not W.key(args.token)
+            or not W.session(args.lease) or not W.session(args.transfer) then return end
+        local offer=peer.bodyOffers and peer.bodyOffers[args.key]
+        if offer and offer.session==peer.session and offer.epoch==S.epoch and offer.id==args.id
+            and offer.token==args.token and offer.lease==args.lease and offer.transfer==args.transfer
+            and offer.used then offer.acked=true;offer.renewAt=now+BODY_RENEW_MS end
+        return
+    end
+    if name=='bodyMissing' then
+        if now<(peer.nextBodyMissing or 0) or not W.key(args.key) or not W.id(args.id)
+            or not W.key(args.token) then return end
+        peer.nextBodyMissing=now+1000
+        local offer=peer.bodyOffers and peer.bodyOffers[args.key]
+        if offer and offer.session==peer.session and offer.epoch==S.epoch and offer.id==args.id
+            and offer.token==args.token and now>=offer.renewAt and (offer.acked or offer.used) then
+            peer.bodyOffers[args.key]=nil;peer.snapshotVersion=nil;peer.visiblePages=nil
+        end
+        return
+    end
     if name=='body' then
-        if now<(peer.nextBody or 0) or not W.key(args.key) or not W.key(args.token) then return end
+        if now<(peer.nextBody or 0) or not W.key(args.key) or not W.id(args.id) or not W.key(args.token)
+            or not W.session(args.lease) then return end
         peer.nextBody=now+1000
+        local offer=peer.bodyOffers and peer.bodyOffers[args.key]
+        if not offer or offer.session~=peer.session or offer.epoch~=S.epoch or offer.id~=args.id
+            or offer.token~=args.token or offer.lease~=args.lease or offer.acked or now>=offer.expires
+            or offer.retries>=BODY_RETRIES or now<offer.nextRetry then return end
         if not S.authority.service.index or not S.authority.service.index.byBody[args.key] then return end
-        local snapshot=S.capture();local row=snapshot.bodies[args.key]
         local body=S.authority.host.body({key=args.key})
-        if not row or row.retired or row.token~=args.token or not body or not W.near(p,row) then return end
-        local payload=CVPNetwork.encode(body);local count=math.ceil(#payload/W.partBytes)
+        local known=S.known[args.key]
+        if not known or known.id~=offer.id or known.token~=offer.token or not body
+            or CVPNetwork.id(body)~=offer.id or not bodyNear(p,body) then return end
+        local payload=cachedBody(offer,now)
+        -- A used lease can only retransmit its cached immutable encoding. Cache
+        -- eviction therefore fails closed instead of repeating native serialization.
+        if not payload then
+            if offer.used or not chargeBodyEncode(peer,now) then return end
+            S.bodyEncoding=true;local ok,result=pcall(CVPNetwork.encode,body);S.bodyEncoding=false
+            if not ok then report(result);return end
+            payload=result
+            if type(payload)~='string' then return end
+        end
+        local count=math.ceil(#payload/W.partBytes)
         if count<1 or count>W.maxParts then return end
-        local transfer=getRandomUUID()
+        if not cachedBody(offer,now) then cacheBody(offer,payload,now) end
+        if not chargeBodyBytes(peer,now,#payload) then return end
+        offer.used=true;offer.retries=offer.retries+1;offer.nextRetry=now+BODY_RETRY_MS*offer.retries
+        offer.transfer=offer.transfer or getRandomUUID();local transfer=offer.transfer
         for part=1,count do sendServerCommand(p,W.module,'body',{protocol=W.version,epoch=S.epoch,session=peer.session,
-            key=args.key,id=row.id,token=row.token,transfer=transfer,part=part,count=count,
+            key=offer.key,id=offer.id,token=offer.token,lease=offer.lease,transfer=transfer,part=part,count=count,
             data=payload:sub((part-1)*W.partBytes+1,part*W.partBytes)}) end
         return
     end

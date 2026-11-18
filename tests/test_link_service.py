@@ -14,12 +14,13 @@ def service(saved=None):
         player.x=0;player.y=0;player.z=0;player.alive=true;player.onFoot=true
         other={key='other-player',x=3,y=0,z=0,alive=true,onFoot=true,others=true}
         targets={A=bodyEnd('A'),B=bodyEnd('B',3),car=carEnd('car',3)}
-        enabled=true;limit=32;blocked=false;clock=0;ids=0
+        enabled=true;limit=32;blocked=false;clock=0;ids=0;resolveCalls=0
         host={now=function() return clock end,uuid=function() ids=ids+1;return 'link-id-'..ids end,
             actor=function(p) return {key=p.key,x=p.x,y=p.y,z=p.z,alive=p.alive,onFoot=p.onFoot,allowOthers=p.others} end,
             enabled=function() return enabled end,maxBodies=function() return limit end,
             canReach=function(p,e) return not blocked end,
             resolve=function(ref,p)
+                resolveCalls=resolveCalls+1
                 if type(ref)~='table' then return nil,'invalid target' end
                 if ref.kind=='ground' then return ground(p.x,p.y,p.z) end
                 local target=targets[ref.key]
@@ -67,6 +68,16 @@ class LinkServiceTests(unittest.TestCase):
                 l=service();l.execute(setup+''';assert(not S:prepare(player,{kind='body',key='A'},42))
                     assert(original.owner==source and transfers==0)''')
 
+    def test_prepare_rejects_missing_prerequisites_before_target_resolution(self):
+        l=service();l.execute('''
+            stowed=false
+            local token,why=S:prepare(player,{kind='body',key='missing'},42)
+            assert(not token and why=='material unavailable' and resolveCalls==0)
+            token,why=S:prepare(player,{kind='body',key='missing'},nil,true,'missing-link',1)
+            assert(not token and why=='stale connection' and resolveCalls==0)
+            assert(original.owner==source and transfers==0)
+        ''')
+
     def test_expired_or_moved_first_endpoint_cannot_complete(self):
         for setup in ('clock=120001','targets.A.x=1.01','targets.A=nil','player.x=20','blocked=true','player.onFoot=false','stowed=false'):
             with self.subTest(setup=setup):
@@ -107,6 +118,49 @@ class LinkServiceTests(unittest.TestCase):
             targets.A=a;a.x=-2
             assert(command('bind','b',{kind='vehicle',key='car'}))
             assert(E.links().links[linkID].length==5)
+        ''')
+
+    def test_remote_ground_bind_requires_bound_one_time_visit(self):
+        l=service();l.execute('''
+            create();targets.B.x=6;player.x=6
+            local revision=S.graph.links[linkID].revision
+            assert(not S:command(player,{op='bind',id=linkID,revision=revision,side='b',target={kind='body',key='B'},gear=0}))
+            assert(S.graph.links[linkID].b.kind=='ground')
+            extra=item({id=43,type='Base.Rope'});source:AddItem(extra);player.x=3
+            assert(not S:prepareBind(player,{id=linkID,revision=revision,side='b',gear=0}))
+            local token=assert(S:prepareBind(player,{id=linkID,revision=revision,side='b',gear=43}))
+            player.x=6
+            assert(S:command(player,{op='bind',id=linkID,revision=revision,side='b',target={kind='body',key='B'},gear=43,continuation=token}))
+            assert(S.graph.links[linkID].b.key=='B' and extra:getContainer()==source)
+        ''')
+
+    def test_bind_visit_expires_clears_and_revalidates_gear(self):
+        for invalidation in ('clock=30001', 'S:disconnect(player.key)',
+                             "assert(S:tick({[linkID]={a=targets.A,b=ground(2)}},{}))",
+                             'source:Remove(extra)'):
+            with self.subTest(invalidation=invalidation):
+                l=service();l.globals().invalidation=invalidation;l.execute('''
+                    create();targets.B.x=6;extra=item({id=43,type='Base.Rope'});source:AddItem(extra)
+                    local revision=S.graph.links[linkID].revision
+                    local token=assert(S:prepareBind(player,{id=linkID,revision=revision,side='b',gear=43}))
+                    assert(loadstring(invalidation))();player.x=6
+                    if invalidation:find('S:tick',1,true) then assert(S.bindVisits[player.key]==nil) end
+                    assert(not S:command(player,{op='bind',id=linkID,revision=revision,side='b',
+                        target={kind='body',key='B'},gear=43,continuation=token}))
+                    assert(S.graph.links[linkID].b.kind=='ground')
+                ''')
+
+    def test_failed_remote_bind_consumes_visit(self):
+        l=service();l.execute('''
+            create();extra=item({id=43,type='Base.Rope'});source:AddItem(extra)
+            local revision=S.graph.links[linkID].revision
+            local token=assert(S:prepareBind(player,{id=linkID,revision=revision,side='b',gear=43}))
+            player.x=6;targets.B.x=6
+            assert(not S:command(player,{op='bind',id=linkID,revision=revision,side='b',
+                target={kind='body',key='missing'},gear=43,continuation=token}))
+            assert(not S:command(player,{op='bind',id=linkID,revision=revision,side='b',
+                target={kind='body',key='B'},gear=43,continuation=token}))
+            assert(S.graph.links[linkID].b.kind=='ground')
         ''')
 
     def test_delayed_lifecycle_release_cannot_undo_new_player_binding(self):
