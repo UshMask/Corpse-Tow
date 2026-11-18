@@ -29,9 +29,13 @@ function Runtime:players(players)
     local missing={}
     for holder in pairs(self.service.index.held) do
         local p=self.host.players[holder];local actor=p and self.host.actor(p)
-        if not actor or not actor.alive or not actor.onFoot then missing[#missing+1]=holder end
+        if not actor or not actor.alive or not actor.onFoot then missing[holder]=true end
     end
-    for _,holder in ipairs(missing) do
+    for key in pairs(self.service.bindVisits) do
+        local p=self.host.players[key];local actor=p and self.host.actor(p)
+        if not actor or not actor.alive or not actor.onFoot then missing[key]=true end
+    end
+    for holder in pairs(missing) do
         local ok,err=self.service:disconnect(holder);if not ok then return false,err end
     end
     return true
@@ -316,6 +320,11 @@ function Runtime:create(player,token,target)
     local ok,err=self:start();if not ok then return false,err end
     local created,why=self.service:create(player,token,target);self:skeletons();return created,why
 end
+function Runtime:prepareBind(player,args)
+    local ok,err=self:start();if not ok then return nil,err end
+    local sampled,why=self:samples();if not sampled then return nil,why end
+    return self.service:prepareBind(player,args)
+end
 function Runtime:command(player,args)
     local ok,err=self:start();if not ok then return false,err end
     local sampled,why=self:samples();if not sampled then return false,why end
@@ -345,6 +354,9 @@ function Runtime:request(player,name,args)
         if not done then return false,nil,id end
         self.loads={};self.simulationFrame=nil
         return true,{id=id,revision=self.service.graph.links[id].revision}
+    elseif name=='bindPrepare' then
+        local token,err=self:prepareBind(player,args)
+        return token~=nil,token and {token=token} or nil,err
     elseif name=='rewirePrepare' then
         local plan,err=self:prepareRewire(player,args.target);return plan~=nil,plan,err
     elseif name=='rewireVisit' then

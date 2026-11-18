@@ -17,11 +17,14 @@ function W.request(name,a)
     if name=='ropePrepare' then return W.ref(a.target) and (P.integer(a.gear) or W.key(a.link) and P.integer(a.revision)) end
     if name=='prepare' then return W.ref(a.target) and P.integer(a.gear) end
     if name=='create' then return W.key(a.token) and W.ref(a.target) end
+    if name=='bindPrepare' then return W.key(a.id) and P.integer(a.revision) and a.revision>=1
+        and (a.side=='a' or a.side=='b') and P.integer(a.gear) end
     if name=='rewirePrepare' then return W.ref(a.target) and a.target.kind=='vehicle' end
     if name=='rewireVisit' then return W.key(a.token) end
     if name~='command' then return false end
     if not W.key(a.id) or not P.integer(a.revision) or a.revision<1 or (a.side~='a' and a.side~='b') then return false end
-    if a.op=='bind' then return W.ref(a.target) and a.target.kind~='ground' and (a.gear==nil or P.integer(a.gear)) end
+    if a.op=='bind' then return W.ref(a.target) and a.target.kind~='ground'
+        and (a.gear==nil and a.continuation==nil or P.integer(a.gear) and W.key(a.continuation)) end
     if a.op=='extend' then return P.integer(a.gear) end
     return a.op=='take' or a.op=='drop' or a.op=='release' or a.op=='remove'
 end
