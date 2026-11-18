@@ -39,21 +39,55 @@ SandboxVars.CorpseProxyLab.BodyWear=true;SandboxVars.CorpseProxyLab.BodyWearRate
 '''
 
 class BodyWearTests(unittest.TestCase):
+    def test_unloaded_square_is_not_used_after_a_phase_yields(self):
+        for stage in (1, 2):
+            with self.subTest(stage=stage):
+                l=client();l.globals().stage=stage;l.execute(MOCK+'''
+                    local id=link(C,A,rope)
+                    body.skeleton=stage==2
+                    body.md.CVPBodyWear={distance=500,stage=stage-1,pending=stage}
+                    BW.observe(R);assert(BW.recover(R));assert(R.saveJob and R.saveJob.wear)
+                    if stage==2 then
+                        assert(not Jobs.advance(R.saveJob))
+                        assert(not S.index.byBody.A and nativeRemovals==0)
+                    end
+                    unloaded=true;assert(Jobs.advance(R.saveJob));assert(not R.saveJob)
+                    assert(body.md.CVPBodyWear.pending==stage and body.world)
+                    assert(nativeSkeletons==0 and nativeRemovals==0)
+                    unloaded=false;assert(recover())
+                    assert(body.md.CVPBodyWear.pending==nil)
+                    assert(nativeSkeletons==(stage==1 and 1 or 0))
+                    assert(nativeRemovals==(stage==2 and 1 or 0))
+                    assert(E.get(S.graph.links[id].equipment)==rope)
+                ''')
+
     def test_transition_starts_only_one_checkpoint_phase_per_tick(self):
         l=client();l.execute(MOCK+'''
             body.md.CVPBodyWear={distance=500,stage=0,pending=1}
             body2.md.CVPBodyWear={distance=500,stage=0,pending=1}
-            BW.observe(R);local before=equipmentCheckpoints;now=now+1
-            R.authorityTick=(R.authorityTick or 0)+1
-            assert(BW.recover(R));assert(R.saveJob and R.saveJob.wear)
+            local backend=CVPEquipmentPersistence;local checkpoint=backend.checkpointSquareAsync
+            backend.checkpointSquareAsync=function(q)
+                local ticket=checkpoint(q);ticket.wait=true;return ticket
+            end
+            backend.poll=function(ticket)
+                if ticket.wait then ticket.wait=nil;return 0 end
+                return 1
+            end
+            local function advance() now=now+16;assert(R:tick({player},.05)) end
+            BW.observe(R);local before=equipmentCheckpoints
+            advance();assert(R.saveJob and R.saveJob.wear)
             assert(equipmentCheckpoints==before+1 and nativeSkeletons==0)
             assert(BW.recover(R));assert(equipmentCheckpoints==before+1)
-            now=now+1;Jobs.advance(R.saveJob)
+            advance();assert(equipmentCheckpoints==before+1 and nativeSkeletons==0)
+            advance()
             assert(equipmentCheckpoints==before+2 and nativeSkeletons==1)
-            now=now+1;Jobs.advance(R.saveJob)
+            advance();assert(equipmentCheckpoints==before+2)
+            advance();assert(equipmentCheckpoints==before+3 and R.saveJob)
+            advance()
             assert(equipmentCheckpoints==before+3 and not R.saveJob)
             local pending=0;for _ in pairs(R.simulation.wearPending) do pending=pending+1 end
             assert(pending==1,'second body started in the same transition budget')
+            advance();assert(equipmentCheckpoints==before+4 and R.saveJob and nativeSkeletons==1)
         ''')
 
     def test_notice_only_after_success_not_failed_retry(self):

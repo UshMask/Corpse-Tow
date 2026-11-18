@@ -39,10 +39,14 @@ function W.observe(runtime)
         end
     end end
 end
+local function squareAvailable(b,square,live)
+    return square and getCell():getGridSquare(square:getX(),square:getY(),square:getZ())==square
+        and (not live or (b:getSquare()==square and b:getStaticMovingObjectIndex()>=0))
+end
 local function recoverBody(runtime,b,square,row)
     local live=b:getStaticMovingObjectIndex()>=0
     if live then square=b:getSquare() end
-    if not square or getCell():getGridSquare(square:getX(),square:getY(),square:getZ())~=square then
+    if not squareAvailable(b,square,live) then
         return false,nil,'body wear square unavailable'
     end
     runtime.simulation.wearPending[b]=square
@@ -55,12 +59,14 @@ local function recoverBody(runtime,b,square,row)
         if not checkpoint(square) then return false,nil,'body wear marker save failed' end
         -- Never start two full-chunk snapshots in one authority-tick resume.
         coroutine.yield()
+        if not squareAvailable(b,square,true) then return false,nil,'body wear square unavailable' end
     end
     if row.pending==1 then
         local ok,done=pcall(CVPBodyWearNative.skeletonTransition,b)
         if not ok or not done then return false,nil,'skeleton transition save failed' end
         if not checkpoint(square) then return false,nil,'skeleton transition save failed' end
         coroutine.yield()
+        if not squareAvailable(b,square,true) then return false,nil,'body wear square unavailable' end
         row.stage=1;row.distance=0;row.pending=nil
         if not checkpoint(square) then row.pending=1;return false,nil,'skeleton state save failed' end
     else
@@ -69,6 +75,7 @@ local function recoverBody(runtime,b,square,row)
         if not ok then return false,nil,why end
         -- A graph write may have completed in this resume; removal gets its own budget.
         coroutine.yield()
+        if not squareAvailable(b,square,live) then return false,nil,'body wear square unavailable' end
         local called,done=pcall(CVPBodyWearNative.removeTransition,b,square)
         if not called or not done or not checkpoint(square) then return false,nil,'body removal save failed' end
         -- The square checkpoint already confirmed removal. Do not rediscover an
