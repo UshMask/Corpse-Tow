@@ -1,7 +1,7 @@
 -- Graph transport: plain tables only. Old tether packets remain protocol 3.
 local P=require 'CVP_Protocol'
 local G=require 'CVP_LinkGraph'
-local W={version=13,module='CVP',interval=100,radius=90,pageSize=16,maxPages=65536}
+local W={version=14,module='CVP',interval=100,radius=90,pageSize=16,maxPages=65536}
 W.finite=P.finite;W.integer=P.integer;W.id=P.id;W.partBytes=P.partBytes;W.maxParts=P.maxParts
 function W.key(s) return type(s)=='string' and #s>0 and #s<=256 end
 function W.session(s) return type(s)=='string' and #s>0 and #s<=80 end
@@ -59,6 +59,7 @@ function W.body(row)
     end
     if not position(row) or not W.key(row.key) or not P.id(row.id) or not W.key(row.token)
         or not P.finite(row.angle) or type(row.connections)~='table' then return false end
+    if row.lease~=nil and not W.session(row.lease) then return false end
     local count=0;for k,id in pairs(row.connections) do
         count=count+1;if not P.integer(k) or k<1 or k>2 or not W.key(id) then return false end
     end

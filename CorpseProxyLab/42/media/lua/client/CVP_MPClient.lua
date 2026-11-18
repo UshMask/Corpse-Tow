@@ -284,7 +284,8 @@ function C.receive(name,args)
         end
     elseif name=='body' then
         local row=W.key(args.key) and C.rows[args.key]
-        if not row or row.descriptor.token~=args.token or row.descriptor.id~=args.id or not W.session(args.transfer)
+        if not row or row.descriptor.token~=args.token or row.descriptor.id~=args.id
+            or row.descriptor.lease~=args.lease or not W.session(args.lease) or not W.session(args.transfer)
             or not W.integer(args.count) or args.count<1 or args.count>W.maxParts
             or not W.integer(args.part) or args.part<1 or args.part>args.count
             or type(args.data)~='string' or #args.data>W.partBytes then return end
@@ -295,6 +296,8 @@ function C.receive(name,args)
         for i=1,part.count do if not part.parts[i] then return end end
         CVPNetwork.receive(args.id,table.concat(part.parts));C.parts[args.key]=nil
         local body=resolved(row.descriptor,true)
+        if body then send(nil,'bodyAck',{key=args.key,id=args.id,token=args.token,
+            lease=args.lease,transfer=args.transfer}) end
         if row.body~=body then untrack(row) end
         row.body=body;C.host.discover()
     end
@@ -383,7 +386,10 @@ local function updateBodies(now)
     -- A missing chunk or failed replica must not monopolize the request slot.
     if missing and now>=C.nextBody then
         missing.requested=now;C.nextBody=now+1100
-        send(nil,'body',{key=missing.descriptor.key,token=missing.descriptor.token})
+        local descriptor=missing.descriptor
+        if descriptor.lease then send(nil,'body',{key=descriptor.key,id=descriptor.id,
+            token=descriptor.token,lease=descriptor.lease})
+        else send(nil,'bodyMissing',{key=descriptor.key,id=descriptor.id,token=descriptor.token}) end
     end
 end
 local lastTick=getTimestampMs()
