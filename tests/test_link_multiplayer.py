@@ -628,6 +628,30 @@ class LinkMultiplayerTests(unittest.TestCase):
         n.pump()
         s.execute('local count=0;for _ in pairs(S.graph.links) do count=count+1 end;assert(count==1 and rope:getContainer()~=storage)')
 
+    def test_result_reasons_are_redacted_at_wire_boundary(self):
+        n=Network();c=n.clients['owner'];s=n.server
+        s.execute(r"""
+            failureReason='java.nio.file.AccessDeniedException: /srv/world/CVPEquipment.bin.tmp'
+            R.submit=function(self,p,name,args,callback)
+                callback(false,nil,failureReason);return {done=true}
+            end
+        """)
+        c.execute("CVPMPClient.api.request(player,'prepare',{target=A,gear=rope.id},function() end)")
+        request=take(c,'clientPackets')[0];n.send(request)
+        first=next(p for p in take(s,'packets') if p['name']=='result')
+        self.assertEqual(first['args']['reason'],'IGUI_CVP_ActionFailed')
+        self.assertNotIn('/srv/world',first['args']['reason'])
+
+        n.send(request)
+        replay=next(p for p in take(s,'packets') if p['name']=='result')
+        self.assertEqual(replay['args']['reason'],'IGUI_CVP_ActionFailed')
+
+        s.execute("failureReason='not owner'")
+        c.execute("CVPMPClient.api.request(player,'prepare',{target=A,gear=rope.id},function() end)")
+        n.send(take(c,'clientPackets')[0])
+        known=next(p for p in take(s,'packets') if p['name']=='result')
+        self.assertEqual(known['args']['reason'],'IGUI_CVP_OtherOwner')
+
     def test_same_snapshot_refreshes_replaced_local_body_before_callbacks(self):
         n=Network();n.server.execute('link(C,A,rope)');n.publish()
         c=n.clients['owner'];c.execute("""
