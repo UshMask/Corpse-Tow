@@ -2,6 +2,16 @@
 
 English player-facing release history. Entries below retain their original publication order. Release archives in `releases/` are historical evidence and are not rewritten.
 
+## Corpse Tow 0.8.3
+
+- The vehicle's nearby-body actions check from the end of the current train for the next body within the remaining rope length. New trains still start near the vehicle, and the menu previews bodies that can fit.
+- The standard action starts a separate train when another rope is needed. The long-line action can use a spare rope to extend the current train.
+- Multiplayer servers and clients must update together to protocol 14 and restart.
+
+## Corpse Tow 0.8.2 - published 14 Nov 2026
+
+- Restored saved towing equipment after updating to Build 42.22.2. Older equipment journals are backed up before replacement.
+
 ## Corpse Tow 0.8.1 — prepared, not published
 
 - Added Spanish translations for Spain, Mexico and Chile, including menu text and world settings.
