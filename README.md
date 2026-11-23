@@ -4,6 +4,7 @@
 
 - [Страница мода в Steam Workshop](https://steamcommunity.com/sharedfiles/filedetails/?id=3823056494)
 - [История изменений](CHANGELOG.md)
+- [Дорожная карта](ROADMAP.md)
 - `CorpseProxyLab/42/` — Lua-код и игровые ресурсы.
 - `CorpseProxyLab/source/` — исходники Java-моста.
 - `CorpseProxyViewpoint/` — совместимость со старыми списками модов.
