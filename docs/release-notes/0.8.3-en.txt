@@ -1,0 +1,7 @@
+Corpse Tow 0.8.3
+
+The vehicle's Tie Nearby Bodies and Add Nearby Bodies actions now look for the next body from the end of the train and check the remaining rope length. The highlight shows the planned targets.
+
+The standard action starts a separate train at the vehicle when another rope is needed. The long-line action can extend the current train with a spare rope.
+
+Multiplayer server and clients must update together to protocol 14 and restart.

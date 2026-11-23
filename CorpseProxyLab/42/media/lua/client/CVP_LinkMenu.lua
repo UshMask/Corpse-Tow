@@ -422,21 +422,28 @@ end
 function Context:tractorChoices(car,isHorse,ref,tractorPoint,tractorWhy)
     local actions,p,index,scope,point=self.actions,self.p,self.index,self.scope,self.point
     local bodies=self.bodies
-    local targets,selected={},{};local ax,ay=tractorPoint.x,tractorPoint.y
+    local targets,selected,ropeTargets={},{},{};local ax,ay=tractorPoint.x,tractorPoint.y
+    -- Keep the click's search area fixed. A tail can reach beyond the original
+    -- 8-cell starting radius, but cannot pull the search along with the player.
+    local area=not isHorse and {x=ax,y=ay,z=tractorPoint.z,playerX=p:getX(),playerY=p:getY()}
     for _,b in ipairs(bodies) do if World.towable(b) and not b:isPlayer() and not index.byBody[b:getModData().CVPBodyKey]
-        and not b:getModData().CVPTether and not World.foreignTowed(b) and not b:isBeingGrappled()
-        and (b:getX()-ax)^2+(b:getY()-ay)^2<=64 then
-        local target=reference(b);target.point=point or (not isHorse and Geometry.nearestPoint(b,car,ref.point)) or 'feet'
-        targets[#targets+1]=target;selected[#selected+1]=b
+        and not b:getModData().CVPTether and not World.foreignTowed(b) and not b:isBeingGrappled() then
+        local d=(b:getX()-ax)^2+(b:getY()-ay)^2
+        if d<=64 or area and d<=G.capacity^2 then
+            local target=reference(b);target.point=point or (not isHorse and Geometry.nearestPoint(b,car,ref.point)) or 'feet'
+            if d<=64 then targets[#targets+1]=target;selected[#selected+1]=b end
+            ropeTargets[#ropeTargets+1]=target
+        end
     end end
     local ropes=self.equipment('Base.Rope')
-    local continuation=(scope.material~='Base.Rope' or #ropes==0) and actions:continuation(p,ref,targets,true)
+    local continuation=(scope.material~='Base.Rope' or #ropes==0) and actions:continuation(p,ref,ropeTargets,true,nil,index,area)
     local useRope=scope.material=='Base.Rope' or continuation
-    local commonWhy=tractorWhy or not World.towingEnabled() and 'IGUI_CVP_TowingDisabled'
-        or #targets==0 and 'IGUI_CVP_NoNearby'
-    local ropeWhy=commonWhy or #ropes==0 and not continuation and 'IGUI_CVP_NeedRope'
+    local unavailable=tractorWhy or not World.towingEnabled() and 'IGUI_CVP_TowingDisabled'
+    local commonWhy=unavailable or #targets==0 and 'IGUI_CVP_NoNearby'
+    local ropeWhy=unavailable or #ropeTargets==0 and 'IGUI_CVP_NoNearby'
+        or #ropes==0 and not continuation and 'IGUI_CVP_NeedRope'
     local items=self.equipment(scope.material)
-    return {targets=targets,bodies=selected,ropes=ropes,useRope=useRope,
+    return {targets=targets,bodies=selected,ropeTargets=ropeTargets,area=area,ropes=ropes,useRope=useRope,
         commonWhy=commonWhy,ropeWhy=ropeWhy,items=items,
         why=commonWhy or #items==0 and 'IGUI_CVP_NeedGear'}
 end
@@ -465,17 +472,27 @@ function Context:tractorMenu(car,isHorse)
         local choice=self:tractorChoices(car,isHorse,ref,tractorPoint,tractorWhy)
         local targets,selected,ropes=choice.targets,choice.bodies,choice.ropes
         local useRope,commonWhy,ropeWhy=choice.useRope,choice.commonWhy,choice.ropeWhy
-        local shared=self:option(methods,getText('IGUI_CVP_SharedMethod'),ropeWhy,
-            function() actions:ropeBatch(p,ref,targets,self.finish) end,selected,visualCar,{tractorPoint})
+        local area,ropeTargets=choice.area,choice.ropeTargets
+        local sharedBodies,groupedBodies=selected,selected
+        if area then
+            sharedBodies=not (self.common or ropeWhy) and actions:ropePreview(p,ref,ropeTargets,false,area,#ropes,index) or {}
+            groupedBodies=not (self.common or ropeWhy) and actions:ropePreview(p,ref,ropeTargets,true,area,#ropes,index) or {}
+        end
+        local function ropeOption(parent,label,separate,primary,bodies,ends)
+            local why=ropeWhy or area and #bodies==0 and 'IGUI_CVP_NoNearby'
+            if primary and #targets==0 and #bodies==0 then return end
+            return self:option(parent,label,why,function()
+                actions:ropeBatch(p,ref,ropeTargets,self.finish,separate,nil,area,area and #bodies or nil)
+            end,bodies,visualCar,ends,primary)
+        end
+        local shared=ropeOption(methods,getText('IGUI_CVP_SharedMethod'),false,false,sharedBodies,{tractorPoint})
         Menu.hint(shared,getText('IGUI_CVP_SharedRopeHint'))
         local primaryLabel=getText(#edges>0 and 'IGUI_CVP_AddNearestBodies' or 'IGUI_CVP_TieNearestBodies')
-        if useRope and #targets>0 then
-            local opt=self:option(parent,primaryLabel,ropeWhy,
-                function() actions:ropeBatch(p,ref,targets,self.finish,true) end,selected,visualCar,{tractorPoint},true)
-            Menu.hint(opt,getText('IGUI_CVP_SeparateTrainsHint'))
+        if useRope then
+            local opt=ropeOption(parent,primaryLabel,true,true,groupedBodies,{tractorPoint})
+            if opt then Menu.hint(opt,getText('IGUI_CVP_SeparateTrainsHint')) end
         end
-        local grouped=self:option(methods,getText('IGUI_CVP_TieSeparateTrains'),ropeWhy or #ropes==0 and not actions:continuation(p,ref,targets,true) and 'IGUI_CVP_NeedRope',
-            function() actions:ropeBatch(p,ref,targets,self.finish,true) end,selected,visualCar)
+        local grouped=ropeOption(methods,getText('IGUI_CVP_TieSeparateTrains'),true,false,groupedBodies)
         Menu.hint(grouped,getText('IGUI_CVP_SeparateTrainsHint'))
         local items,why=choice.items,choice.why
         if not useRope and #targets>0 then

@@ -3,6 +3,7 @@
 local Action=require 'CVP_AttachAction'
 local Feedback=require 'CVP_Feedback'
 local G=require 'CVP_LinkGraph'
+local World=require 'CVP_World'
 local message=require 'CVP_LinkMessages'
 require 'Vehicles/TimedActions/ISPathFindAction'
 local Actions={};Actions.__index=Actions
@@ -307,27 +308,72 @@ function Actions:batch(p,root,targets,gear,sequential,after)
 end
 -- One queue, one physical rope per shared 12 m budget. The authority measures
 -- every section again; client planning is only a convenience, never a claim.
-function Actions:continuation(p,root,targets,separate,selectedId,index)
+local function ropeBodyAvailable(b)
+    return b and not b:getModData().CVPTether and not World.foreignTowed(b) and not b:isBeingGrappled()
+end
+local function nearbyRopePoint(host,target,area,starting)
+    local b=host.actionBody(target)
+    if not ropeBodyAvailable(b) or b:isPlayer() then return end
+    local x,y,z=b:getX(),b:getY(),b:getZ()
+    local radius=starting and 8 or G.capacity
+    if math.floor(z)~=math.floor(area.z) or (x-area.x)^2+(y-area.y)^2>radius^2
+        or (x-area.playerX)^2+(y-area.playerY)^2>144 then return end
+    local point=host.bodyPoint(b,target.point)
+    if math.floor(point.z)==math.floor(area.z) then return point end
+end
+local function ropePath(host,area)
+    if not area or not host.path then return end
+    local cache=require('CVP_LinkObstacles').new()
+    return function(a,b) return not host.path(a,b,cache) end
+end
+local function nearestRopeBody(pool,cursor,index,sample,starting,reachable)
+    local best,dist,at
+    for i,e in ipairs(pool) do
+        local point=sample(e,starting)
+        local d=point and math.max(.1,G.distance(cursor,point))
+        if not (e.key and index.byBody[e.key]) and d and d<=G.capacity and (not dist or d<dist)
+            and (not reachable or reachable(cursor,point)) then
+            best,dist,at=i,d,point
+        end
+    end
+    return best,dist,at
+end
+local function ownsRopeBranch(p,graph,branch)
+    for _,id in ipairs(branch.ids) do
+        local owner=graph.links[id].owner
+        if owner~='legacy:unowned' and not World.canDetach(p,{owner=owner}) then return false end
+    end
+    return true
+end
+function Actions:continuation(p,root,targets,separate,selectedId,index,area)
     local graph=self.api.graph();index=index or G.index(graph)
     local horse=root.kind=='horse'
     local car=horse and self.api.host.horse(root) or not horse and self.api.host.vehicle(root);if not car then return end
     local key=root.key or car:getModData().CVPVehicleKey or ('sql:'..tostring(car:getSqlId()))
     local spare=#require('CVP_Batch').equipment(p,'Base.Rope')>0
     local best,bestDistance;local choices,listed={},{}
+    local reachable=ropePath(self.api.host,area)
     for _,edge in ipairs((horse and index.byHorse or index.byVehicle)[key] or {}) do
         if horse or graph.links[edge.id][edge.side].point==(root.point or 'hitch') then
             local branch=G.branch(graph,index,edge.id,edge.side)
             local row,e,count=branch.last,branch.endpoint,#branch.bodies
             if e.kind=='body' then
                 local spool=index.spools[row.equipment]
-                if (not selectedId or row.id==selectedId) and row.allocation and not row.returning and count<require('CVP_World').maxChain()
-                    and require('CVP_World').canDetach(p,{owner=row.owner}) then
+                if (not selectedId or row.id==selectedId) and row.allocation and not row.returning and count<World.maxChain()
+                    and World.canDetach(p,{owner=row.owner}) and (not area or ownsRopeBranch(p,graph,branch)) then
                     local at=self.api.host.sample(e)
+                    if area then
+                        local b=self.api.host.body(e)
+                        if not ropeBodyAvailable(b) or b:isPlayer() and not World.playerBodiesAllowed() then at=nil end
+                    end
                     if at then for _,target in ipairs(targets) do
-                        local pos=self.api.host.sample(target)
+                        local pos
+                        if area then pos=nearbyRopePoint(self.api.host,target,area,false)
+                        else pos=self.api.host.sample(target) end
                         local d=pos and math.max(.1,G.distance(at,pos))
                         if not index.byBody[target.key] and d and math.floor(at.z)==math.floor(pos.z) and d<=G.capacity
                             and (d<=G.capacity-spool.used+1e-7 or not separate and spare)
+                            and (not reachable or reachable(at,pos))
                             then
                             local choice={id=row.id,source=G.copy(e),count=count}
                             if not listed[row.id] then choices[#choices+1]=choice;listed[row.id]=true end
@@ -342,34 +388,68 @@ function Actions:continuation(p,root,targets,separate,selectedId,index)
     end
     return best,choices
 end
-function Actions:ropeBatch(p,root,targets,after,separate,selectedId)
-    local job=self:begin(p,#targets,'bodies',after)
+function Actions:ropePreview(p,root,targets,separate,area,spares,index)
+    local host=self.api.host;local graph=self.api.graph()
+    local pool={};for i,e in ipairs(targets) do pool[i]=G.copy(e) end
+    local origin=host.sample(root);if not origin then return {} end
+    local cursor,remaining,count=origin,nil,0
+    local resume=self:continuation(p,root,pool,separate,nil,index,area)
+    if resume then
+        cursor=host.sample(resume.source);count=resume.count
+        remaining=G.capacity-index.spools[graph.links[resume.id].equipment].used
+    end
+    local route={};local limit=World.maxChain();local reachable=ropePath(host,area)
+    local function sample(e,starting) return nearbyRopePoint(host,e,area,starting) end
+    while #pool>0 do
+        local best,dist,at
+        if cursor and count<limit then best,dist,at=nearestRopeBody(pool,cursor,index,sample,remaining==nil,reachable) end
+        local reuse=best and remaining and dist<=remaining+1e-7
+        if best and (reuse or not remaining or not separate) then
+            if not reuse then
+                if spares==0 then break end
+                spares=spares-1;remaining=G.capacity
+            end
+            route[#route+1]=host.body(table.remove(pool,best));cursor=at;remaining=remaining-dist;count=count+1
+        elseif separate and remaining then
+            cursor,remaining,count=origin,nil,0
+        else break end
+    end
+    return route
+end
+function Actions:ropeBatch(p,root,targets,after,separate,selectedId,area,total)
+    local job=self:begin(p,total or #targets,'bodies',after)
     local pool={};for _,e in ipairs(targets) do pool[#pool+1]=job:reference(e) end
     local used={};local count=0;local branchCount=0;local source=job:reference(root);local last
-    local resume=selectedId~=false and self:continuation(p,root,targets,separate,selectedId)
+    local resume=selectedId~=false and self:continuation(p,root,pool,separate,selectedId,nil,area)
     if selectedId and not resume then job:finish(false,nil,'IGUI_CVP_ConnectionChanged');return job end
     if resume then source=resume.source;last=resume.id;branchCount=resume.count end
+    local function sample(e,starting)
+        if area then return nearbyRopePoint(self.api.host,e,area,starting) end
+        return job:sample(e)
+    end
+    local function complete()
+        if area then
+            job.feedback.total=count
+            if count==0 then job:finish(false,nil,'IGUI_CVP_NoNearby');return end
+        end
+        job:finish(true)
+    end
     local visit
     local function restart()
         source=job:reference(root);last=nil;branchCount=0;visit()
     end
     visit=function()
-        if #pool==0 then job:finish(true);return end
-        if branchCount>=require('CVP_World').maxChain() then
-            if separate then restart() else job:finish(true) end;return
+        if #pool==0 then complete();return end
+        if branchCount>=World.maxChain() then
+            if separate then restart() else complete() end;return
         end
         local cursor,reason=job:sample(source)
         if not cursor then job:finish(false,nil,reason or 'IGUI_CVP_Unavailable');return end
-        local best,dist
+        if area and math.floor(cursor.z)~=math.floor(area.z) then job:finish(false,nil,'IGUI_CVP_BodyFloor');return end
         local graph=self.api.graph();local index=G.index(graph)
-        for i,e in ipairs(pool) do
-            local at=job:sample(e)
-            local occupied=e.key and index.byBody[e.key]
-            local d=at and math.max(.1,G.distance(cursor,at))
-            if not occupied and d and d<=G.capacity and (not dist or d<dist) then best,dist=i,d end
-        end
+        local best,dist=nearestRopeBody(pool,cursor,index,sample,last==nil,ropePath(self.api.host,area))
         if not best then
-            if separate and last then restart() else job:finish(true) end;return
+            if separate and last then restart() else complete() end;return
         end
         local previous=last and graph.links[last]
         local spool=previous and index.spools[previous.equipment]
@@ -391,6 +471,7 @@ function Actions:ropeBatch(p,root,targets,after,separate,selectedId)
                 job:createAt(target,gear,token,function(result)
                     if gear then used[gear:getID()]=true end
                     job.gear=nil;last=result.id;source=target;count=count+1;branchCount=branchCount+1
+                    if area then job.feedback.total=math.max(job.feedback.total,count) end
                     Feedback.progress(job.feedback,count,'IGUI_CVP_VisitBodies');visit()
                 end)
             end)
