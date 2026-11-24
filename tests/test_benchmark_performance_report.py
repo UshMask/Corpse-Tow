@@ -1,9 +1,10 @@
-import importlib.util
 import unittest
-from optional_files import optional_file
+from optional_files import load_optional_tool
 
-spec=importlib.util.spec_from_file_location('performance_report',optional_file('tools/performance_report.py'))
-report=importlib.util.module_from_spec(spec);spec.loader.exec_module(report)
+
+def setUpModule():
+    global report
+    report = load_optional_tool('performance_report', 'tools/performance_report.py')
 
 
 class PerformanceReportTests(unittest.TestCase):

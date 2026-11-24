@@ -1,9 +1,9 @@
 """Current read-only bridge: local guards, framing, I/O retry and singleton polling."""
 import json
 import unittest
-from optional_files import optional_file
 from lupa.lua51 import LuaRuntime
 from test_link_client import client
+from optional_files import optional_file
 
 SOURCE = 'CVPAgent/42/media/lua/client/CVPA_Bridge.lua'
 
@@ -75,7 +75,7 @@ class AgentBridgeTests(unittest.TestCase):
 
     def test_failed_write_replays_result_without_repeating_read_or_callback(self):
         lua = bridge()
-        lua.execute(SOURCE.read_text(encoding='utf-8-sig'))
+        lua.execute(optional_file(SOURCE).read_text(encoding='utf-8-sig'))
         self.assertEqual(lua.globals().registrations, 1)
         lua.globals().failWrite = True
         self.assertIsNone(request(lua, 'once', 'corpse.scene-status'))

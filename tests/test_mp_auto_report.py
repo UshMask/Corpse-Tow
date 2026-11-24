@@ -1,12 +1,14 @@
 import csv
-import importlib.util
 from pathlib import Path
 import tempfile
 import unittest
-from optional_files import optional_file
+from optional_files import load_optional_tool
 
-spec=importlib.util.spec_from_file_location('mp_auto',optional_file('tools/mp-test/run.py'))
-module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
+
+def setUpModule():
+    global module
+    module = load_optional_tool('mp_auto', 'tools/mp-test/run.py')
+
 
 class ReportTests(unittest.TestCase):
     def measure(self,jump=0,gap=50):

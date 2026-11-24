@@ -1,10 +1,9 @@
 """Corrupt saves may lose towing, never inventories or the ability to attach anew."""
-import copy
 import unittest
-from optional_files import optional_file
 from test_link_runtime import migration_environment
 from test_link_graph import environment, plain
 from test_link_runtime import environment as runtime
+from optional_files import optional_file
 
 
 def recovery(lua):

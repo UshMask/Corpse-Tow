@@ -1,12 +1,14 @@
-import importlib.util
 from pathlib import Path
 import tempfile
 import os
 import unittest
-from optional_files import optional_file
+from optional_files import load_optional_tool
 
-spec=importlib.util.spec_from_file_location('assets', optional_file('tools/pz-test/assets.py'))
-assets=importlib.util.module_from_spec(spec);spec.loader.exec_module(assets)
+
+def setUpModule():
+    global assets
+    assets = load_optional_tool('assets', 'tools/pz-test/assets.py')
+
 
 class AssetTests(unittest.TestCase):
     def test_identical_dll_rewrite_reuses_inventory_but_content_change_does_not(self):

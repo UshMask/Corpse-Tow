@@ -1,7 +1,7 @@
 from pathlib import Path
 import unittest
-from optional_files import optional_file
 from lupa.lua51 import LuaRuntime
+from optional_files import optional_file
 
 
 def fixture():

@@ -153,6 +153,9 @@ powershell -NoProfile -File tools/Project.ps1 -Action diagnostics
   пункт 6. Номер версии и совпадение файлов не доказывают версию уже открытой игры.
 
 Полный Python/Lua без Java: `.venv/Scripts/python.exe -B tools/run_tests.py --full`.
+В checkout без инструментов стенда или архивных релизов зависимые проверки
+выводят `skipped` с путём к недостающему файлу. Если файл установлен, тест
+запускается как обычно; ошибка импорта или выполнения не считается пропуском.
 Отдельные тесты: `.venv/Scripts/python.exe -B -m unittest discover -s tests -p "test_link_graph.py"`.
 Для обычной оптимизации используйте целевые проверки `.venv/Scripts/python.exe -B tools/test_optimization.py`.
 После небольшой правки сначала выбирайте тесты затронутого поведения; FPS-замер

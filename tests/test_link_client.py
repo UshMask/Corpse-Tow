@@ -2,8 +2,8 @@
 from pathlib import Path
 import json
 import unittest
-from optional_files import optional_file
 from test_link_actions import scene
+from optional_files import optional_file
 
 SOURCE = Path('CorpseProxyLab/42/media/lua/client/CVP_Client.lua')
 

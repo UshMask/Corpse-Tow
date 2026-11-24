@@ -2,8 +2,8 @@
 import json
 from pathlib import Path
 import unittest
-from optional_files import optional_file
 from lupa.lua51 import LuaRuntime
+from optional_files import optional_file
 CORE='tools/pz-test/mod/42/media/lua/shared/PZT_Control.lua'
 def core(old=False):
     l=LuaRuntime();l.execute(Path('tests/fixtures/benchmark_fixture.lua').read_text())

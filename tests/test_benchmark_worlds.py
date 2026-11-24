@@ -1,11 +1,12 @@
-import importlib.util
 from pathlib import Path
 import tempfile
 import unittest
-from optional_files import optional_file
+from optional_files import load_optional_tool
 
-spec=importlib.util.spec_from_file_location('worlds',optional_file('tools/pz-test/worlds.py'))
-worlds=importlib.util.module_from_spec(spec);spec.loader.exec_module(worlds)
+
+def setUpModule():
+    global worlds
+    worlds = load_optional_tool('worlds', 'tools/pz-test/worlds.py')
 
 
 class WorldTests(unittest.TestCase):
@@ -88,7 +89,6 @@ class WorldTests(unittest.TestCase):
             self.assertIn('3',[(p/'map_ver.bin').read_text() for p in backups if (p/'map_ver.bin').exists()])
 
     def test_failed_restore_does_not_prune(self):
-        from unittest.mock import patch
         with tempfile.TemporaryDirectory() as temp:
             root=Path(temp);source=root/'source';source.mkdir()
             (source/'map_ver.bin').write_bytes(b'original')

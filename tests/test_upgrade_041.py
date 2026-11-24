@@ -6,9 +6,9 @@ from pathlib import Path
 import hashlib
 import json
 import unittest
-from optional_files import optional_file
 from test_link_simulation import environment
 from test_link_graph import plain
+from optional_files import optional_file
 
 OLD = Path('releases/0.4.1/Workshop/Contents/mods/CorpseProxyLab/42/media/lua')
 CURRENT = Path('CorpseProxyLab/42/media/lua')
