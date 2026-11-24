@@ -3,11 +3,12 @@ import json
 from pathlib import Path
 import unittest
 from lupa.lua51 import LuaRuntime
-CORE=Path('tools/pz-test/mod/42/media/lua/shared/PZT_Control.lua')
+from optional_files import optional_file
+CORE='tools/pz-test/mod/42/media/lua/shared/PZT_Control.lua'
 def core(old=False):
     l=LuaRuntime();l.execute(Path('tests/fixtures/benchmark_fixture.lua').read_text())
     if old: l.execute("files['PZTest/request.txt']={'old','1000','change','','END'}")
-    l.execute(CORE.read_text())
+    l.execute(optional_file(CORE).read_text())
     l.execute("calls=0;PZTest.register('change',function() calls=calls+1;return calls end)")
     return l
 

@@ -21,6 +21,7 @@ class FixtureLoaderTests(unittest.TestCase):
         with patch.object(Path,'read_text',current_only):
             lua=client()
             lua.execute("local e=require 'CVP_Equipment';assert(not e.updateBindings and not e.endTail and not require('CVP_Connection').chainSize)")
+            lua.execute("assert(not require('CVP_Connection').matches and not require('CVP_Load').tension)")
             lua.execute("local id=link(C,A,rope);tick();edit(id,'remove','b');assert(rope:getContainer()==storage);intact(body)")
             network=Network()
             network.server.execute('id=link(C,A,rope)')

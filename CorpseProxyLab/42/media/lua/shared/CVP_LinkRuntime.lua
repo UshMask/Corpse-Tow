@@ -3,7 +3,6 @@ local SimulationFrame=require 'CVP_SimulationFrame'
 -- SP and server share one authority. No client may open this ledger or advance
 -- its world bodies; adapters supply their current online-player list.
 local E=require 'CVP_Equipment'
-local World=require 'CVP_World'
 local Load=require 'CVP_Load'
 local Runtime={};Runtime.__index=Runtime
 if LuaEventManager then LuaEventManager.AddEvent('OnCVPVehicleRemoved') end

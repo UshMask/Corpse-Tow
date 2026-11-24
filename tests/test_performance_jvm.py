@@ -3,8 +3,14 @@ import sys
 import tempfile
 import unittest
 import xml.etree.ElementTree as ET
+from optional_files import optional_file
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'tools'))
-from performance_jvm import configuration, summarize, seconds
+
+
+def setUpModule():
+    global configuration, summarize, seconds
+    optional_file('tools/performance_jvm.py')
+    from performance_jvm import configuration, summarize, seconds
 
 
 class JvmTests(unittest.TestCase):

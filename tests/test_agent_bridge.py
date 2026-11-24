@@ -1,11 +1,11 @@
 """Current read-only bridge: local guards, framing, I/O retry and singleton polling."""
 import json
-from pathlib import Path
 import unittest
 from lupa.lua51 import LuaRuntime
 from test_link_client import client
+from optional_files import optional_file
 
-SOURCE = Path('CVPAgent/42/media/lua/client/CVPA_Bridge.lua')
+SOURCE = 'CVPAgent/42/media/lua/client/CVPA_Bridge.lua'
 
 
 def bridge():
@@ -29,8 +29,8 @@ def bridge():
         CVPFreeRopeScene.captures=function() captures=captures+1;return captures end
         CVPFreeRopeScene.segments=function() return 0 end
     ''')
-    lua.execute("package.preload['PZT_Control']=assert(loadstring(...))", Path('tools/pz-test/mod/42/media/lua/shared/PZT_Control.lua').read_text())
-    lua.execute(SOURCE.read_text(encoding='utf-8-sig'))
+    lua.execute("package.preload['PZT_Control']=assert(loadstring(...))", optional_file('tools/pz-test/mod/42/media/lua/shared/PZT_Control.lua').read_text())
+    lua.execute(optional_file(SOURCE).read_text(encoding='utf-8-sig'))
     return lua
 
 
@@ -44,7 +44,7 @@ def request(lua, identity, command='corpse.status', session=None):
 
 class AgentBridgeTests(unittest.TestCase):
     def test_multiplayer_and_debug_guards(self):
-        source = SOURCE.read_text(encoding='utf-8-sig')
+        source = optional_file(SOURCE).read_text(encoding='utf-8-sig')
         for mode in ('client', 'server', 'nodebug'):
             with self.subTest(mode=mode):
                 lua = LuaRuntime()
@@ -75,7 +75,7 @@ class AgentBridgeTests(unittest.TestCase):
 
     def test_failed_write_replays_result_without_repeating_read_or_callback(self):
         lua = bridge()
-        lua.execute(SOURCE.read_text(encoding='utf-8-sig'))
+        lua.execute(optional_file(SOURCE).read_text(encoding='utf-8-sig'))
         self.assertEqual(lua.globals().registrations, 1)
         lua.globals().failWrite = True
         self.assertIsNone(request(lua, 'once', 'corpse.scene-status'))

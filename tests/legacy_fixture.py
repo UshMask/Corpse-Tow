@@ -7,9 +7,9 @@ from lua_fixture import create_world
 
 def legacy_operations(name, source):
     """Keep historical methods in their original lexical scope, outside shipped Lua."""
-    if name not in ('Connection', 'Equipment'):
+    if name not in ('Connection', 'Equipment', 'Load'):
         return source
-    result = 'Connection' if name == 'Connection' else 'E'
+    result = 'E' if name == 'Equipment' else name
     end = 'return ' + result
     assert source.rstrip().endswith(end)
     operations = Path('tests/fixtures/v031', name.lower() + '_operations.lua').read_text()

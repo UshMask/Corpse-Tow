@@ -8,6 +8,7 @@ import json
 import unittest
 from test_link_simulation import environment
 from test_link_graph import plain
+from optional_files import optional_file
 
 OLD = Path('releases/0.4.1/Workshop/Contents/mods/CorpseProxyLab/42/media/lua')
 CURRENT = Path('CorpseProxyLab/42/media/lua')
@@ -62,7 +63,7 @@ class Upgrade041Tests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         release=Path('releases/0.4.1')
-        rows=json.loads((release/'manifest.json').read_text())
+        rows=json.loads(optional_file(release/'manifest.json').read_text())
         for row in rows:
             data=(release/'Workshop'/row['path']).read_bytes()
             assert hashlib.sha256(data).hexdigest()==row['sha256'],row['path']

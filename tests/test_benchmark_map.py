@@ -1,12 +1,13 @@
-import importlib.util
 from pathlib import Path
 import struct
 import tempfile
 import unittest
+from optional_files import load_optional_tool
 
-spec = importlib.util.spec_from_file_location('test_map_builder', 'tools/build_test_map.py')
-builder = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(builder)
+
+def setUpModule():
+    global builder
+    builder = load_optional_tool('test_map_builder', 'tools/build_test_map.py')
 
 
 class ProvingGroundTests(unittest.TestCase):

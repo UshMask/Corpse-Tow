@@ -1,13 +1,12 @@
-import importlib.util
 import struct
 import unittest
-from pathlib import Path
 from unittest.mock import patch
+from optional_files import load_optional_tool
 
-spec = importlib.util.spec_from_file_location(
-    'quit_server', Path(__file__).resolve().parents[1] / 'tools/mp-test/quit_server.py')
-rcon = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(rcon)
+
+def setUpModule():
+    global rcon
+    rcon = load_optional_tool('quit_server', 'tools/mp-test/quit_server.py')
 
 
 def packet(request, kind, text=b''):

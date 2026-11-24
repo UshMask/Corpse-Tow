@@ -1,14 +1,15 @@
-import importlib.util
 import json
 from pathlib import Path
 import tempfile
 import threading
 import time
 import unittest
+from optional_files import load_optional_tool
 
-spec = importlib.util.spec_from_file_location('agent', Path(__file__).resolve().parents[1] / 'tools/cvp_agent.py')
-agent = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(agent)
+
+def setUpModule():
+    global agent
+    agent = load_optional_tool('agent', 'tools/cvp_agent.py')
 
 
 class ClientTests(unittest.TestCase):

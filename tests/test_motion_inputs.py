@@ -62,8 +62,14 @@ class MotionInputTests(unittest.TestCase):
         ''')
 
     def test_prepared_blend_preserves_slack_ramp_and_variable_frame_intervals(self):
-        l=environment(); l.execute('''
-            local load=require 'CVP_Load';local r={mass=75};local expected=0
+        from pathlib import Path
+        from lupa.lua51 import LuaRuntime
+        from legacy_fixture import legacy_operations
+        l=LuaRuntime()
+        source=Path('CorpseProxyLab/42/media/lua/shared/CVP_Load.lua').read_text()
+        l.globals().legacyLoad=l.execute(legacy_operations('Load',source))
+        l.execute('''
+            local load=legacyLoad;local r={mass=75};local expected=0
             for i=1,180 do
                 local dt=({.016/2,.017/3,.1/12,0,-.01})[i%5+1]
                 local taut=i%7~=0;r.mass=i%13==0 and 130 or 75

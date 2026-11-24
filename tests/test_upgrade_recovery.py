@@ -1,9 +1,9 @@
 """Corrupt saves may lose towing, never inventories or the ability to attach anew."""
-import copy
 import unittest
 from test_link_runtime import migration_environment
 from test_link_graph import environment, plain
 from test_link_runtime import environment as runtime
+from optional_files import optional_file
 
 
 def recovery(lua):
@@ -27,7 +27,7 @@ class UpgradeRecoveryTests(unittest.TestCase):
         import test_equipment as equipment
         import test_link_graph as graph
         root=Path('releases/0.7.8/Workshop/Contents/mods/CorpseProxyLab/42/media/lua/shared')
-        with patch.object(equipment,'SOURCE',(root/'CVP_Equipment.lua').read_text(encoding='utf-8-sig')), patch.object(graph,'GRAPH',(root/'CVP_LinkGraph.lua').read_text(encoding='utf-8-sig')):
+        with patch.object(equipment,'SOURCE',optional_file(root/'CVP_Equipment.lua').read_text(encoding='utf-8-sig')), patch.object(graph,'GRAPH',optional_file(root/'CVP_LinkGraph.lua').read_text(encoding='utf-8-sig')):
             old=graph.environment(storage=True)
             old.execute("key=assert(E.hold(original,transfer,{link={id='link',a=bodyEnd('A'),b=ground(2),owner='alice'}}))")
             saved=plain(old.globals().persisted); key=old.globals().key

@@ -5,9 +5,15 @@ import sys
 import tempfile
 import unittest
 from unittest.mock import patch
+from optional_files import optional_file
 
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'tools'))
-from performance_jfr import record
+
+
+def setUpModule():
+    global record
+    optional_file('tools/performance_jfr.py')
+    from performance_jfr import record
 
 
 class JfrTests(unittest.TestCase):

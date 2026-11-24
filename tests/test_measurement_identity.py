@@ -1,7 +1,15 @@
 import sys,unittest,tempfile,json,hashlib
 from pathlib import Path
+from optional_files import optional_file
 sys.path.insert(0,'tools')
-import performance_journal as j
+
+
+def setUpModule():
+    global j
+    optional_file('tools/performance_journal.py')
+    import performance_journal as j
+
+
 class IdentityTests(unittest.TestCase):
  def test_identity(self):
   with tempfile.TemporaryDirectory() as t:

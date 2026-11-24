@@ -6,9 +6,15 @@ import tempfile
 import unittest
 from contextlib import contextmanager
 from unittest.mock import patch
+from optional_files import optional_file
 
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'tools'))
-import performance_series as runner
+
+
+def setUpModule():
+    global runner
+    optional_file('tools/performance_series.py')
+    import performance_series as runner
 
 
 class SeriesRunnerTests(unittest.TestCase):

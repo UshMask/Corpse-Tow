@@ -12,11 +12,6 @@ function Connection.valid(c,vehicle,point)
         and (point==nil or c.b.point==point) and (c.b.point=='feet' or c.b.point=='neck')
 end
 
-function Connection.matches(expected,current)
-    -- Missing identity is accepted only for an older caller/packet.
-    return expected==nil or type(current)=='table' and expected.id==current.id
-end
-
 function Connection.copy(c)
     if not c then return nil end
     return {version=c.version,id=c.id,

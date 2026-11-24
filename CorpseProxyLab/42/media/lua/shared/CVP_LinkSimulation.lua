@@ -212,7 +212,7 @@ function Sim:prepareGroup(group,graph,sample,readPass,network,dt,recovering)
     return rootSample,startX,startY
 end
 -- Produces candidate records only. The caller still owns commit and recovery.
-local function solveGroup(group,root,pathCache,steps,h,now,startX,startY,rootSample,release,loadBlend)
+local function solveGroup(group,root,pathCache,steps,h,now,startX,startY,rootSample,release)
     group.nativeFallback=false;group.solverIterations=0;group.solverResidual=0;group.recoverySteps=0
     local first=group.records[1]
     local ready,obstruction,accumulated=true,nil,0
@@ -309,7 +309,7 @@ local function solveGroup(group,root,pathCache,steps,h,now,startX,startY,rootSam
         clearNativeResets(group.records)
     end
     if group.nativeFallback then group.fallbackTicks=(group.fallbackTicks or 0)+1 end
-    return ready,obstruction,accumulated,loadBlend
+    return ready,obstruction,accumulated
 end
 function Sim:tick(graph,index,dt,now,interpolationLag,clockCorrection)
     self:restore()
@@ -358,7 +358,6 @@ function Sim:tick(graph,index,dt,now,interpolationLag,clockCorrection)
     -- Optional additive bridge: older JARs keep the identical Lua read path.
     if CVPWorldNative and CVPWorldNative.beginRead then readPass=CVPWorldNative.beginRead() end
     local skipInvalidation -- Camera/render mode is stable during this synchronous tick.
-    local loadBlend -- Lazily shared by all moving groups at this timestep.
     for _,group in ipairs(self.groups) do
         if #group.spans>0 then Joints.place(group,graph,self.host) end
         local ready=not group.horse or Horse.active(group.vehicle);local root=graph.links[group.root.id];local obstruction
@@ -433,10 +432,10 @@ function Sim:tick(graph,index,dt,now,interpolationLag,clockCorrection)
             end
         end
         if ready then
-            local accumulated=0
+            local accumulated
             local rootSample,startX,startY=self:prepareGroup(group,graph,sample,readPass,network,dt,recovering)
-            ready,obstruction,accumulated,loadBlend=solveGroup(group,root,pathCache,steps,h,now,
-                startX,startY,rootSample,release,loadBlend)
+            ready,obstruction,accumulated=solveGroup(group,root,pathCache,steps,h,now,
+                startX,startY,rootSample,release)
             if skipInvalidation==nil then
                 skipInvalidation=CVPDynamicCorpses~=nil and CVPDynamicCorpses.canSkipMoveInvalidation()
             end

@@ -122,7 +122,7 @@ function Context:endMenu(parent,link,side,primary,choiceParent,choiceLabel,skipR
 end
 
 function Context:targetChoice(ref,label,source,body,car)
-    local api,p,index=self.api,self.p,self.index
+    local api,index=self.api,self.index
     local held,heldLink,gear=self.held,self.heldLink,self.gear
     local edges=ref.kind=='body' and index.byBody[ref.key]
     local from=source or heldLink and heldLink[held.side=='a' and 'b' or 'a']
@@ -596,7 +596,7 @@ end
 
 function Context:fill()
     local objects=self.objects
-    local p,context,graph,scope,point=self.p,self.context,self.graph,self.scope,self.point
+    local p,context,graph,scope=self.p,self.context,self.graph,self.scope
     local held,heldLink,bodies,cars=self.held,self.heldLink,self.bodies,self.cars
     local picked=Menu.groundSquare(p,context)
     -- Native animal picking includes the model above its ground square.

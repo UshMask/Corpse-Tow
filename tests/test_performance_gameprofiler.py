@@ -3,8 +3,14 @@ from pathlib import Path
 import tempfile
 import unittest
 from unittest.mock import patch
+from optional_files import optional_file
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'tools'))
-import performance_gameprofiler as gp
+
+
+def setUpModule():
+    global gp
+    optional_file('tools/performance_gameprofiler.py')
+    import performance_gameprofiler as gp
 
 
 class StockProfilerTests(unittest.TestCase):

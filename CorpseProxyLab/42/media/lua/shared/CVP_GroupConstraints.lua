@@ -157,7 +157,7 @@ function C.step(records,cache,rx,ry,h,group)
     -- Reject the entire coupled step on obstruction; do not leave half a chain moved.
     for i,r in ipairs(records) do
         local p=r.coupledPose
-        local x,y,a,blocked=Geometry.resolve(r,p.x,p.y,p.angle,r.angle,cache)
+        local _,_,_,blocked=Geometry.resolve(r,p.x,p.y,p.angle,r.angle,cache)
         local sx,sy,sz=source(r,i,rx,ry);local fx,fy=foot(r,p)
         local why=Obstacles.check(cache,{x=sx,y=sy,z=sz},{x=fx,y=fy,z=r.z},(r.length or 4)+6)
         if blocked or why then
@@ -175,4 +175,3 @@ function C.step(records,cache,rx,ry,h,group)
     end
 end
 return C
-

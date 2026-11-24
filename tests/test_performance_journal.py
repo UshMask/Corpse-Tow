@@ -1,11 +1,13 @@
-import importlib.util
 import json
 from pathlib import Path
 import tempfile
 import unittest
+from optional_files import load_optional_tool
 
-spec=importlib.util.spec_from_file_location('journal',Path(__file__).resolve().parents[1]/'tools/performance_journal.py')
-j=importlib.util.module_from_spec(spec);spec.loader.exec_module(j)
+
+def setUpModule():
+    global j
+    j = load_optional_tool('journal', 'tools/performance_journal.py')
 
 
 class JournalTests(unittest.TestCase):

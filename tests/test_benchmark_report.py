@@ -1,11 +1,12 @@
-import importlib.util
 import tempfile
 import unittest
 from pathlib import Path
+from optional_files import load_optional_tool
 
-spec = importlib.util.spec_from_file_location('benchmark_report', Path('tools/benchmark_report.py'))
-report = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(report)
+
+def setUpModule():
+    global report
+    report = load_optional_tool('benchmark_report', 'tools/benchmark_report.py')
 
 
 class BenchmarkReportTests(unittest.TestCase):

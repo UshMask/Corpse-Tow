@@ -1,13 +1,17 @@
-import copy
 import json
 from pathlib import Path
 import sys
 import tempfile
 import unittest
 from unittest.mock import patch
+from optional_files import optional_file
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'tools'))
-import performance_compare as runner
-from performance_series import verify_build
+
+
+def setUpModule():
+    global runner
+    optional_file('tools/performance_compare.py')
+    import performance_compare as runner
 
 
 def build(root):
@@ -42,6 +46,9 @@ class ComparisonTests(unittest.TestCase):
         self.assertFalse(runner.compatible_settings({'uncapped':True,'zoom':1}, {'uncapped':True,'zoom':1.000001}))
 
     def test_frozen_copy_and_installed_hashes(self):
+        optional_file('tools/performance_series.py')
+        from performance_series import verify_build
+
         with tempfile.TemporaryDirectory() as t:
             root=Path(t);source=root/'source';build(source)
             frozen=root/'frozen';manifest=runner.freeze(source,frozen)

@@ -3,6 +3,7 @@ from pathlib import Path
 import json
 import unittest
 from test_link_actions import scene
+from optional_files import optional_file
 
 SOURCE = Path('CorpseProxyLab/42/media/lua/client/CVP_Client.lua')
 
@@ -98,8 +99,8 @@ class LinkClientTests(unittest.TestCase):
             CVPFreeRopeScene.captures=function() return 2 end
             CVPFreeRopeScene.segments=function() return 3 end
         ''')
-        l.execute("package.preload['PZT_Control']=assert(loadstring(...))", Path('tools/pz-test/mod/42/media/lua/shared/PZT_Control.lua').read_text())
-        l.execute(Path('CVPAgent/42/media/lua/client/CVPA_Bridge.lua').read_text(encoding='utf-8-sig'))
+        l.execute("package.preload['PZT_Control']=assert(loadstring(...))", optional_file('tools/pz-test/mod/42/media/lua/shared/PZT_Control.lua').read_text())
+        l.execute(optional_file('CVPAgent/42/media/lua/client/CVPA_Bridge.lua').read_text(encoding='utf-8-sig'))
         for i, command in enumerate(('corpse.status', 'corpse.scene-status', 'attach', 'scene-reset', 'scene-render', 'corpse.status'), 1):
             l.globals().files['PZTest/request.txt'] = f'{i}\n{l.globals().CVPAgent.session}\n{command}\nunused\nEND\n'
             l.execute('now=now+250;CVPAgent.poll()')
