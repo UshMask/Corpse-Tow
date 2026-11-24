@@ -3,8 +3,9 @@ from pathlib import Path
 import tempfile
 import os
 import unittest
+from optional_files import optional_file
 
-spec=importlib.util.spec_from_file_location('assets','tools/pz-test/assets.py')
+spec=importlib.util.spec_from_file_location('assets', optional_file('tools/pz-test/assets.py'))
 assets=importlib.util.module_from_spec(spec);spec.loader.exec_module(assets)
 
 class AssetTests(unittest.TestCase):

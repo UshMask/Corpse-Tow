@@ -3,8 +3,9 @@ from pathlib import Path
 import struct
 import tempfile
 import unittest
+from optional_files import optional_file
 
-spec = importlib.util.spec_from_file_location('test_map_builder', 'tools/build_test_map.py')
+spec = importlib.util.spec_from_file_location('test_map_builder', optional_file('tools/build_test_map.py'))
 builder = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(builder)
 

@@ -3,8 +3,9 @@ import importlib.util
 from pathlib import Path
 import tempfile
 import unittest
+from optional_files import optional_file
 
-spec=importlib.util.spec_from_file_location('mp_auto',Path(__file__).resolve().parents[1]/'tools/mp-test/run.py')
+spec=importlib.util.spec_from_file_location('mp_auto',optional_file('tools/mp-test/run.py'))
 module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
 
 class ReportTests(unittest.TestCase):

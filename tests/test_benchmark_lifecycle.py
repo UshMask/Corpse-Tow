@@ -1,12 +1,13 @@
 from pathlib import Path
 import unittest
+from optional_files import optional_file
 from lupa.lua51 import LuaRuntime
 
 
 def fixture():
     lua = LuaRuntime()
     lua.execute(Path('tests/fixtures/benchmark_fixture.lua').read_text())
-    lua.execute("package.preload['PZT_Control']=assert(loadstring(...))", Path('tools/pz-test/mod/42/media/lua/shared/PZT_Control.lua').read_text())
+    lua.execute("package.preload['PZT_Control']=assert(loadstring(...))", optional_file('tools/pz-test/mod/42/media/lua/shared/PZT_Control.lua').read_text())
     lua.execute(Path('tests/scenarios/corpse-tow/CVP_Benchmark.lua').read_text())
     return lua
 

@@ -1,6 +1,9 @@
-from pathlib import Path
 import unittest
+from optional_files import optional_file
 from lupa.lua51 import LuaRuntime
+
+
+QUICK_START = 'tools/quick-test/CVP_QuickStart.lua'
 
 
 class AutoloadTests(unittest.TestCase):
@@ -33,7 +36,7 @@ class AutoloadTests(unittest.TestCase):
             LoadingQueueState={new=function() return 'loading' end}
             forceChangeState=function(state) changed=state end
         ''')
-        lua.execute(Path('tools/quick-test/CVP_QuickStart.lua').read_text())
+        lua.execute(optional_file(QUICK_START).read_text())
         lua.execute('enter();render();render()')
         self.assertEqual(lua.globals().created, 'PZT_VehicleLab')
         self.assertEqual(lua.globals().changed, 'loading')
@@ -61,7 +64,7 @@ class AutoloadTests(unittest.TestCase):
                 end}
             """)
             lua.globals().mode = mode
-            lua.execute(Path('tools/quick-test/CVP_QuickStart.lua').read_text())
+            lua.execute(optional_file(QUICK_START).read_text())
             lua.execute('enter();assert(loads==nil)')
             if mode == 'ordinary':
                 lua.execute('assert(render==nil)')
@@ -83,7 +86,7 @@ class AutoloadTests(unittest.TestCase):
                 getSandboxOptions=function() return {updateFromLua=function() applied=true end} end
             """)
             lua.globals().world=world;lua.globals().mapName=map_name
-            lua.execute(Path('tools/quick-test/CVP_QuickStart.lua').read_text())
+            lua.execute(optional_file(QUICK_START).read_text())
             lua.execute('loaded()')
             self.assertEqual(bool(lua.globals().applied),expected)
             self.assertEqual(lua.eval('SandboxVars.Zombies'),6 if expected else 4)
@@ -110,7 +113,7 @@ class AutoloadTests(unittest.TestCase):
                 assert(mode=='Sandbox' and world=='PZT_VehicleLab');loads=(loads or 0)+1
             end}
         """)
-        lua.execute(Path('tools/quick-test/CVP_QuickStart.lua').read_text())
+        lua.execute(optional_file(QUICK_START).read_text())
         lua.execute('enter();local queued=render;render();render();queued();enter();assert(loads==1 and render==nil)')
 
     def test_manual_supplies_are_idempotent_and_benchmark_excluded(self):
@@ -134,5 +137,5 @@ class AutoloadTests(unittest.TestCase):
                     next=function() nextCar=false;return car end}
             end} end} end
         """)
-        lua.execute(Path('tools/quick-test/CVP_QuickStart.lua').read_text())
+        lua.execute(optional_file(QUICK_START).read_text())
         lua.execute("benchmark=true;CVPQuickTestSupplies();assert(#rows==0);benchmark=false;world='Other';CVPQuickTestSupplies();assert(#rows==0);world='PZT_VehicleLab';CVPQuickTestSupplies();CVPQuickTestSupplies();assert(#rows==33 and keys==1)")

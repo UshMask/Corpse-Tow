@@ -5,8 +5,9 @@ import tempfile
 import threading
 import time
 import unittest
+from optional_files import optional_file
 
-spec = importlib.util.spec_from_file_location('agent', Path(__file__).resolve().parents[1] / 'tools/cvp_agent.py')
+spec = importlib.util.spec_from_file_location('agent', optional_file('tools/cvp_agent.py'))
 agent = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(agent)
 

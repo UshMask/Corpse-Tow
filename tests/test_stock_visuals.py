@@ -1,6 +1,6 @@
 """Native-resource presentation: cancellations cannot mutate tethers or send RPCs."""
-from pathlib import Path
 import unittest
+from optional_files import optional_file
 from test_multiplayer import vm
 
 
@@ -83,7 +83,7 @@ class StockVisualTests(unittest.TestCase):
     def test_mesh_budget_winding_and_atlas_uv(self):
         import math
         from importlib.util import spec_from_file_location, module_from_spec
-        spec = spec_from_file_location('tether_meshes', 'tools/build_tether_meshes.py')
+        spec = spec_from_file_location('tether_meshes', optional_file('tools/build_tether_meshes.py'))
         module = module_from_spec(spec)
         spec.loader.exec_module(module)
         meshes = {}

@@ -3,8 +3,9 @@ import json
 from pathlib import Path
 import tempfile
 import unittest
+from optional_files import optional_file
 
-spec=importlib.util.spec_from_file_location('journal',Path(__file__).resolve().parents[1]/'tools/performance_journal.py')
+spec=importlib.util.spec_from_file_location('journal',optional_file('tools/performance_journal.py'))
 j=importlib.util.module_from_spec(spec);spec.loader.exec_module(j)
 
 

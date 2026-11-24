@@ -2,8 +2,9 @@ import importlib.util
 from pathlib import Path
 import tempfile
 import unittest
+from optional_files import optional_file
 
-spec=importlib.util.spec_from_file_location('worlds',Path('tools/pz-test/worlds.py'))
+spec=importlib.util.spec_from_file_location('worlds',optional_file('tools/pz-test/worlds.py'))
 worlds=importlib.util.module_from_spec(spec);spec.loader.exec_module(worlds)
 
 

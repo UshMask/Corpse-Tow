@@ -1,8 +1,8 @@
 import importlib.util
-from pathlib import Path
 import unittest
+from optional_files import optional_file
 
-spec=importlib.util.spec_from_file_location('performance_report',Path('tools/performance_report.py'))
+spec=importlib.util.spec_from_file_location('performance_report',optional_file('tools/performance_report.py'))
 report=importlib.util.module_from_spec(spec);spec.loader.exec_module(report)
 
 

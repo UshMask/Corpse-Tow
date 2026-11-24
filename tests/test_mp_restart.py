@@ -1,11 +1,11 @@
 import importlib.util
 import struct
 import unittest
-from pathlib import Path
+from optional_files import optional_file
 from unittest.mock import patch
 
 spec = importlib.util.spec_from_file_location(
-    'quit_server', Path(__file__).resolve().parents[1] / 'tools/mp-test/quit_server.py')
+    'quit_server', optional_file('tools/mp-test/quit_server.py'))
 rcon = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(rcon)
 

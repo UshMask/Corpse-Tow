@@ -1,8 +1,8 @@
 import importlib.util
-from pathlib import Path
 import unittest
+from optional_files import optional_file
 
-spec=importlib.util.spec_from_file_location('settings',Path('tools/pz-test/settings.py'))
+spec=importlib.util.spec_from_file_location('settings',optional_file('tools/pz-test/settings.py'))
 settings=importlib.util.module_from_spec(spec);spec.loader.exec_module(settings)
 
 

@@ -2,8 +2,10 @@ from pathlib import Path
 import sys
 import tempfile
 import unittest
+from optional_files import optional_file
 import xml.etree.ElementTree as ET
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'tools'))
+optional_file('tools/performance_jvm.py')
 from performance_jvm import configuration, summarize, seconds
 
 
