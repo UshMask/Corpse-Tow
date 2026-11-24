@@ -199,8 +199,8 @@ The implementation path is complete; live acceptance is still outstanding.
   barriers, body transfers, durable writes and rollback keep their existing paths.
 
 Both server and all clients require protocol 14 and the rebuilt JAR. No save
-migration is needed. `CVP_LoadPrediction` is retained solely as a historical
-harness adapter; production has no load predictor or prediction-state allocation.
+migration is needed. `tests/fixtures/CVP_LoadPrediction.lua` preserves the
+historical harness adapter; production has no load predictor or prediction-state allocation.
 
 Limits: render correction follows the engine-exposed vehicle attachment; subframe
 vehicle projection remains the native rope renderer's responsibility. It cannot
@@ -286,4 +286,3 @@ were not ruled out. The observed two-body slow-stop displacement also requires a
 matched repeat. The isolated evidence and full logs are in
 `local/runs/chain-spread-investigation-20261102/`; those local results are not part
 of the Git commit. No test thresholds were relaxed.
-

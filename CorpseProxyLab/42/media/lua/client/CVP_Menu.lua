@@ -202,25 +202,8 @@ function M.begin(p,context,objects,focused,available)
         M.hint(opt,getText('IGUI_CVP_QueueCancelHint'))
     end
     local material,available=M.material(p,false,available)
-    local scope={material=material,available=available,vehicle=v,clicked=clicked,bodyClick=any,bodyCount=count,root=root,vehicles={},bodies={},active=Feedback.active[p]}
-    local best=36
-    if not focused and not v and not any then
-        local cars=getCell():getVehicles():iterator()
-        while cars:hasNext() do local car=cars:next()
-            local d=(car:getX()-p:getX())^2+(car:getY()-p:getY())^2
-            if car:getSquare() and math.floor(car:getZ())==math.floor(p:getZ()) and d<=best then scope.primary=car;best=d end
-        end
-    end
+    local scope={material=material,available=available,vehicle=v,clicked=clicked,bodyClick=any,bodyCount=count,root=root,bodies={},active=Feedback.active[p]}
     function scope:allows(b) return (not focused and not self.bodyClick) or self.clicked[b]==true end
-    function scope:vehicleMenu(car)
-        if self.vehicle or self.primary==car then return self.root end
-        if not self.vehicles[car] then
-            local name=car:getScript():getName()
-            name=(getTextOrNull and getTextOrNull('IGUI_VehicleName'..name)) or name
-            self.vehicles[car]=M.sub(self.root,name)
-        end
-        return self.vehicles[car]
-    end
     function scope:bodyMenu(b,index)
         if self.bodyClick and self.bodyCount==1 then return self.root end
         if not self.bodies[b] then

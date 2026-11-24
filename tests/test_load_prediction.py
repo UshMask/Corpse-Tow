@@ -9,7 +9,8 @@ class PredictionTests(unittest.TestCase):
     def setUp(self):
         self.l = LuaRuntime()
         self.l.execute("package.path='"+ROOT.as_posix()+"/?.lua;'..package.path")
-        self.l.execute("P=require 'CVP_LoadPrediction';L=require 'CVP_Load'")
+        self.l.globals().P = self.l.execute(Path('tests/fixtures/CVP_LoadPrediction.lua').read_text())
+        self.l.execute("L=require 'CVP_Load'")
 
     def test_zero_load_or_time_does_not_read_vehicle_physics(self):
         self.l.execute('L.apply(nil,0,.05);L.apply(nil,75,0)')

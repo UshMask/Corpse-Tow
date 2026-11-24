@@ -9,7 +9,6 @@ class VehicleLoadTests(unittest.TestCase):
         This models the inspected Java queue contract, not a running Bullet car/engine.
         """
         from pathlib import Path
-        import sys
         from lupa.lua51 import LuaRuntime
 
         L = LuaRuntime()
@@ -96,8 +95,10 @@ class VehicleLoadTests(unittest.TestCase):
     def test_tension_ramp_is_smooth_and_frame_rate_independent(self):
         from pathlib import Path
         from lupa.lua51 import LuaRuntime
+        from legacy_fixture import legacy_operations
         L = LuaRuntime()
-        L.globals().Load = L.execute(Path('CorpseProxyLab/42/media/lua/shared/CVP_Load.lua').read_text())
+        source = Path('CorpseProxyLab/42/media/lua/shared/CVP_Load.lua').read_text()
+        L.globals().Load = L.execute(legacy_operations('Load', source))
         L.execute("""
         local reference
         for _,fps in ipairs({30,60,120}) do

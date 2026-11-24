@@ -1,4 +1,9 @@
 -- Historical controller operations; inserted only by the legacy test loader.
+function Connection.matches(expected,current)
+    -- Missing identity is accepted only for an older caller/packet.
+    return expected==nil or type(current)=='table' and expected.id==current.id
+end
+
 function Connection.chainSize(members,id)
     local seen={}
     while members[id]~=true do

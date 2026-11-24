@@ -127,10 +127,6 @@ local function summarize(store, unit)
     }
 end
 
-local function resetTable(t)
-    for key in pairs(t) do t[key] = nil end
-end
-
 D.bound = {}
 -- Installed wrappers are lifecycle state, not measurement state: reset() must
 -- never forget them or disable() cannot restore the original methods.
@@ -335,7 +331,6 @@ local function installHook(spec)
     local hadRaw = false
     if type(owner) == 'table' then hadRaw = rawget(owner, spec.key) ~= nil end
     local wrapper
-    local maxSamples = nil
     if spec.kind == 'phase' or spec.kind == 'hostSamples' then
         wrapper = function(...)
             local mark = D.clock()
